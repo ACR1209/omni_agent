@@ -38,6 +38,22 @@ RSpec.describe OmniAgent::Providers::OpenAI do
     expect(provider.model).to eq("gpt-4o-mini")
   end
 
+  it "forwards extra model options like temperature into the payload" do
+    messages = [{ role: "user", content: "Hello" }]
+
+    completions = double("completions")
+    chat = double("chat", completions: completions)
+    client_instance = instance_double(OpenAI::Client, chat: chat)
+    allow(OpenAI::Client).to receive(:new)
+      .with(api_key: "token")
+      .and_return(client_instance)
+    expect(completions).to receive(:create)
+      .with(model: "gpt-test", messages: messages, temperature: 0.3)
+      .and_return({ "choices" => [{ "message" => { "content" => "Hi" } }] })
+
+    described_class.new(api_key: "token", model: "gpt-test").chat(messages: messages, temperature: 0.3)
+  end
+
   describe "integration tests" do
     before do
       stub_const("OpenAISpecAgent", Module.new)

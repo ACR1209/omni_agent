@@ -12,7 +12,7 @@ module OmniAgent
               "Please add `gem 'openai'` to your Gemfile."
       end
         
-      def chat(messages:, tools: [])
+      def chat(messages:, tools: [], **options)
         openai_tools = tools.map { |tool| format_tool(tool) }
 
         payload = {
@@ -20,6 +20,7 @@ module OmniAgent
           messages: messages
         }
         payload[:tools] = openai_tools if openai_tools.any?
+        payload.merge!(options) if options.any?
 
         response = client.chat.completions.create(**payload)
 

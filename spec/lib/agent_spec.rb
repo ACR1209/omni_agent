@@ -13,10 +13,15 @@ RSpec.describe OmniAgent::Agent do
 
   let(:provider_class) do
     Class.new do
-      attr_reader :model
+      attr_reader :model, :last_chat_options
 
       def initialize(model: nil)
         @model = model
+      end
+
+      def chat(messages:, tools: [], **options)
+        @last_chat_options = options
+        OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
       end
     end
   end
@@ -73,5 +78,32 @@ RSpec.describe OmniAgent::Agent do
         use_model "gpt-use-model"
       end
     end.to raise_error(OmniAgent::Error, /Cannot combine `provider` and `use_model`/)
+  end
+
+  it "passes DSL options through to provider chat" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      options temperature: 0.2, top_p: 0.8
+    end
+    agent = agent_class.new
+    allow(agent).to receive(:available_tools).and_return([])
+    result = agent.run("Hello")
+
+    expect(result).to eq("ok")
+    expect(agent.provider.last_chat_options).to eq(temperature: 0.2, top_p: 0.8)
+  end
+
+  it "merges options_override over DSL options" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      options temperature: 0.2, top_p: 0.8
+    end
+    agent = agent_class.new(options_override: { temperature: 0.6 })
+    allow(agent).to receive(:available_tools).and_return([])
+    agent.run("Hello")
+
+    expect(agent.provider.last_chat_options).to eq(temperature: 0.6, top_p: 0.8)
   end
 end

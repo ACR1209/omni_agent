@@ -12,6 +12,10 @@ module OmniAgent
         @provider_options = options
       end
 
+      def options(**options)
+        @model_options = configured_model_options.merge(options)
+      end
+
       def use_model(name)
         if configured_provider_name || configured_provider_options.any?
           raise OmniAgent::Error, "Cannot combine `provider` and `use_model` in the same agent. Use either `provider ..., model: ...` or `use_model ...`."
@@ -23,12 +27,14 @@ module OmniAgent
 
       def configured_provider_name; @provider_name; end
       def configured_provider_options; @provider_options || {}; end
+      def configured_model_options; @model_options || {}; end
       def configured_with_use_model?; @configured_with_use_model == true; end
     end
 
-    def initialize(provider_override: nil, model_override: nil)
+    def initialize(provider_override: nil, model_override: nil, options_override: {})
       target_provider_name = provider_override || self.class.configured_provider_name || OmniAgent.configuration.default_provider
       target_model = model_override || self.class.configured_provider_options[:model]
+      @chat_options = self.class.configured_model_options.merge(options_override)
       @provider = resolve_provider(target_provider_name, target_model)
     end
 
@@ -39,7 +45,7 @@ module OmniAgent
       ]
 
       loop do
-        response = provider.chat(messages: messages, tools: available_tools)
+        response = provider.chat(messages: messages, tools: available_tools, **@chat_options)
 
         if response.content && !response.tool_calls?
           messages << { role: "assistant", content: response.content }
@@ -107,8 +113,11 @@ module OmniAgent
 
     def system_prompt(context:)
       return "You are a helpful assistant with access to local tools." unless defined?(Rails)
-      
-      file_path = Rails.root.join("app", "agents", self.class.name.underscore, "prompt.md.erb")
+
+      class_name = self.class.name
+      return "You are a helpful assistant with access to local tools." if class_name.nil?
+
+      file_path = Rails.root.join("app", "agents", class_name.underscore, "prompt.md.erb")
       ERB.new(File.read(file_path)).result_with_hash(context)
     end
   end
