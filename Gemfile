@@ -21,4 +21,10 @@ gem "rubocop", "~> 1.87", groups: [:development, :test]
 
 gem "rspec", groups: [:development, :test]
 gem "rspec-rails", groups: [:development, :test]
-gem "ruby-openai", groups: [:development, :test]
+
+group :development, :test do
+  gem 'vcr'
+  gem 'webmock'
+  gem 'dotenv-rails'
+  gem "openai", "~> 0.66.1"
+end

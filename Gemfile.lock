@@ -3,6 +3,7 @@ PATH
   specs:
     omni_agent (0.1.0)
       rails (>= 8.1.3)
+      zeitwerk (~> 2.6)
 
 GEM
   remote: https://rubygems.org/
@@ -81,29 +82,31 @@ GEM
       securerandom (>= 0.3)
       tzinfo (~> 2.0, >= 2.0.5)
       uri (>= 0.13.1)
+    addressable (2.9.0)
+      public_suffix (>= 2.0.2, < 8.0)
     ast (2.4.3)
     base64 (0.3.0)
     bigdecimal (4.1.2)
     builder (3.3.0)
+    cgi (0.5.1)
     concurrent-ruby (1.3.6)
     connection_pool (3.0.2)
+    crack (1.0.1)
+      bigdecimal
+      rexml
     crass (1.0.6)
     date (3.5.1)
     diff-lcs (1.6.2)
+    dotenv (3.2.0)
+    dotenv-rails (3.2.0)
+      dotenv (= 3.2.0)
+      railties (>= 6.1)
     drb (2.2.3)
     erb (6.0.4)
     erubi (1.13.1)
-    event_stream_parser (1.0.0)
-    faraday (2.14.2)
-      faraday-net_http (>= 2.0, < 3.5)
-      json
-      logger
-    faraday-multipart (1.2.0)
-      multipart-post (~> 2.0)
-    faraday-net_http (3.4.4)
-      net-http (~> 0.5)
     globalid (1.3.0)
       activesupport (>= 6.1)
+    hashdiff (1.2.1)
     i18n (1.14.8)
       concurrent-ruby (~> 1.0)
     io-console (0.8.2)
@@ -130,9 +133,6 @@ GEM
     minitest (6.0.6)
       drb (~> 2.0)
       prism (~> 1.5)
-    multipart-post (2.4.1)
-    net-http (0.9.1)
-      uri (>= 0.11.1)
     net-imap (0.6.4)
       date
       net-protocol
@@ -159,6 +159,10 @@ GEM
       racc (~> 1.4)
     nokogiri (1.19.3-x86_64-linux-musl)
       racc (~> 1.4)
+    openai (0.66.1)
+      base64
+      cgi
+      connection_pool
     parallel (2.1.0)
     parser (3.3.11.1)
       ast (~> 2.4.1)
@@ -174,6 +178,7 @@ GEM
     psych (5.3.1)
       date
       stringio
+    public_suffix (7.0.5)
     puma (8.0.2)
       nio4r (~> 2.0)
     racc (1.8.1)
@@ -228,6 +233,7 @@ GEM
     regexp_parser (2.12.0)
     reline (0.6.3)
       io-console (~> 0.5)
+    rexml (3.4.4)
     rspec (3.13.2)
       rspec-core (~> 3.13.0)
       rspec-expectations (~> 3.13.0)
@@ -281,10 +287,6 @@ GEM
       language_server-protocol (~> 3.17.0)
       prism (>= 1.2, < 2.0)
       rbs (>= 3, < 5)
-    ruby-openai (8.3.0)
-      event_stream_parser (>= 0.3.0, < 2.0.0)
-      faraday (>= 1)
-      faraday-multipart (>= 1)
     ruby-progressbar (1.13.0)
     securerandom (0.4.1)
     sqlite3 (2.9.4-aarch64-linux-gnu)
@@ -306,6 +308,11 @@ GEM
     unicode-emoji (4.2.0)
     uri (1.1.1)
     useragent (0.16.11)
+    vcr (6.4.0)
+    webmock (3.26.2)
+      addressable (>= 2.8.0)
+      crack (>= 0.3.2)
+      hashdiff (>= 0.4.0, < 2.0.0)
     websocket-driver (0.8.0)
       base64
       websocket-extensions (>= 0.1.0)
@@ -323,7 +330,9 @@ PLATFORMS
   x86_64-linux-musl
 
 DEPENDENCIES
+  dotenv-rails
   omni_agent!
+  openai (~> 0.66.1)
   propshaft
   puma
   rspec
@@ -331,8 +340,9 @@ DEPENDENCIES
   rubocop (~> 1.87)
   rubocop-rails-omakase
   ruby-lsp (~> 0.26.9)
-  ruby-openai
   sqlite3
+  vcr
+  webmock
 
 BUNDLED WITH
    2.6.9
