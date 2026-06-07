@@ -4,16 +4,30 @@ module OmniAgent
 
     class << self
       def provider(name, **options)
+        if configured_with_use_model?
+          raise OmniAgent::Error, "Cannot combine `provider` and `use_model` in the same agent. Use either `provider ..., model: ...` or `use_model ...`."
+        end
+
         @provider_name = name
         @provider_options = options
       end
 
+      def use_model(name)
+        if configured_provider_name || configured_provider_options.any?
+          raise OmniAgent::Error, "Cannot combine `provider` and `use_model` in the same agent. Use either `provider ..., model: ...` or `use_model ...`."
+        end
+
+        @configured_with_use_model = true
+        @provider_options = { model: name }
+      end
+
       def configured_provider_name; @provider_name; end
       def configured_provider_options; @provider_options || {}; end
+      def configured_with_use_model?; @configured_with_use_model == true; end
     end
 
     def initialize(provider_override: nil, model_override: nil)
-      target_provider_name = provider_override || self.class.configured_provider_name
+      target_provider_name = provider_override || self.class.configured_provider_name || OmniAgent.configuration.default_provider
       target_model = model_override || self.class.configured_provider_options[:model]
       @provider = resolve_provider(target_provider_name, target_model)
     end
