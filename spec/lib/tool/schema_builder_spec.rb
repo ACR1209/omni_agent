@@ -1,7 +1,7 @@
 require_relative "../../spec_helper"
-require_relative "../../../lib/tool/schema_builder"
+require_relative "../../../lib/omni_agent/tool/schema_builder"
 
-RSpec.describe OmniAgents::Tool::SchemaBuilder do
+RSpec.describe OmniAgent::Tool::SchemaBuilder do
   describe "#initialize" do
     it "starts with empty properties and required_fields" do
       builder = described_class.new

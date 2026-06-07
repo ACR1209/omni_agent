@@ -1,8 +1,8 @@
 require_relative "../../spec_helper"
-require_relative "../../../lib/tool/schema_builder"
-require_relative "../../../lib/tool/tool"
+require_relative "../../../lib/omni_agent/tool/schema_builder"
+require_relative "../../../lib/omni_agent/tool"
 
-RSpec.describe OmniAgents::Tool do
+RSpec.describe OmniAgent::Tool do
   describe ".description" do
     it "returns the default when nothing has been set" do
       klass = Class.new(described_class)
@@ -102,7 +102,7 @@ RSpec.describe OmniAgents::Tool do
     it "raises NotImplementedError in the base class" do
       expect { described_class.new.execute }.to raise_error(
         NotImplementedError,
-        "OmniAgents::Tool must implement #execute"
+        "OmniAgent::Tool must implement #execute"
       )
     end
   end

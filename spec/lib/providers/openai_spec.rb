@@ -1,12 +1,12 @@
 require_relative "../../spec_helper"
-require_relative "../../../lib/errors"
-require_relative "../../../lib/providers/base"
-require_relative "../../../lib/providers/response"
-require_relative "../../../lib/providers/openai"
-require_relative "../../../lib/tool/schema_builder"
-require_relative "../../../lib/tool/tool"
+require_relative "../../../lib/omni_agent/errors"
+require_relative "../../../lib/omni_agent/providers/base"
+require_relative "../../../lib/omni_agent/providers/response"
+require_relative "../../../lib/omni_agent/providers/openai"
+require_relative "../../../lib/omni_agent/tool/schema_builder"
+require_relative "../../../lib/omni_agent/tool"
 
-RSpec.describe OmniAgents::Providers::OpenAI do
+RSpec.describe OmniAgent::Providers::OpenAI do
   it "sends the expected payload to the client and parses the response" do
     messages = [{ role: "user", content: "Hello" }]
     raw_response = {
@@ -25,7 +25,7 @@ RSpec.describe OmniAgents::Providers::OpenAI do
 
     result = described_class.new(api_key: "token", model: "gpt-test").chat(messages: messages)
 
-    expect(result).to be_a(OmniAgents::Providers::Response)
+    expect(result).to be_a(OmniAgent::Providers::Response)
     expect(result.content).to eq("Hi there")
     expect(result.raw_response).to eq(raw_response)
   end
@@ -43,7 +43,7 @@ RSpec.describe OmniAgents::Providers::OpenAI do
         end
       end
 
-      web_search_class = Class.new(OmniAgents::Tool) do
+      web_search_class = Class.new(OmniAgent::Tool) do
         description "Searches the web for current events, news, or factual data."
 
         metadata category: :research, requires_auth: false

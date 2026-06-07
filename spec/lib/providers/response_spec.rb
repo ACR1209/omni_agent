@@ -1,7 +1,7 @@
 require_relative "../../spec_helper"
-require_relative "../../../lib/providers/response"
+require_relative "../../../lib/omni_agent/providers/response"
 
-RSpec.describe OmniAgents::Providers::Response do
+RSpec.describe OmniAgent::Providers::Response do
   describe "#initialize" do
     it "sets content, tool_calls, and raw_response" do
       response = described_class.new(

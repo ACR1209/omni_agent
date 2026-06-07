@@ -1,7 +1,7 @@
 require_relative "../../spec_helper"
-require_relative "../../../lib/providers/base"
+require_relative "../../../lib/omni_agent/providers/base"
 
-RSpec.describe OmniAgents::Providers::Base do
+RSpec.describe OmniAgent::Providers::Base do
   class TestProvider < described_class
     protected
 

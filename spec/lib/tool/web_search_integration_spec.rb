@@ -1,6 +1,6 @@
 require_relative "../../spec_helper"
-require_relative "../../../lib/tool/schema_builder"
-require_relative "../../../lib/tool/tool"
+require_relative "../../../lib/omni_agent/tool/schema_builder"
+require_relative "../../../lib/omni_agent/tool"
 
 RSpec.describe "Tool integration with a concrete class" do
   before do
@@ -9,7 +9,7 @@ RSpec.describe "Tool integration with a concrete class" do
       end
     end
 
-    web_search_class = Class.new(OmniAgents::Tool) do
+    web_search_class = Class.new(OmniAgent::Tool) do
       description "Searches the web for current events, news, or factual data."
 
       metadata category: :research, requires_auth: false
