@@ -15,12 +15,14 @@ RSpec.describe OmniAgent::Providers::OpenAI do
       ]
     }
 
-    client_instance = instance_double(OpenAI::Client)
+    completions = double("completions")
+    chat = double("chat", completions: completions)
+    client_instance = instance_double(OpenAI::Client, chat: chat)
     allow(OpenAI::Client).to receive(:new)
-      .with(access_token: "token")
+      .with(api_key: "token")
       .and_return(client_instance)
-    expect(client_instance).to receive(:chat)
-      .with(parameters: { model: "gpt-test", messages: messages })
+    expect(completions).to receive(:create)
+      .with(model: "gpt-test", messages: messages)
       .and_return(raw_response)
 
     result = described_class.new(api_key: "token", model: "gpt-test").chat(messages: messages)
@@ -30,18 +32,16 @@ RSpec.describe OmniAgent::Providers::OpenAI do
     expect(result.raw_response).to eq(raw_response)
   end
 
-  it "uses gpt-4o as the default model" do
+  it "uses gpt-4o-mini as the default model" do
     provider = described_class.new(api_key: "token")
 
-    expect(provider.model).to eq("gpt-4o")
+    expect(provider.model).to eq("gpt-4o-mini")
   end
 
   describe "integration tests" do
     before do
-      module ResearchAgent
-        module Tools
-        end
-      end
+      stub_const("OpenAISpecAgent", Module.new)
+      stub_const("OpenAISpecAgent::Tools", Module.new)
 
       web_search_class = Class.new(OmniAgent::Tool) do
         description "Searches the web for current events, news, or factual data."
@@ -60,36 +60,41 @@ RSpec.describe OmniAgent::Providers::OpenAI do
         end
       end
 
-      stub_const("ResearchAgent::Tools::WebSearch", web_search_class)
+      stub_const("OpenAISpecAgent::Tools::WebSearch", web_search_class)
     end    
 
     it "formats tools correctly in the payload" do
       provider = described_class.new(api_key: "token", model: "gpt-test")
 
-      expected_tool_payload = [
-        {
-          type: "function",
-          function: {
-            name: "WebSearch",
-            description: "Searches the web for current events, news, or factual data.",
-            parameters: {
-              type: "object",
-              properties: {
-                query: { type: "string", description: "The precise search query to execute" },
-                limit: { type: "integer", description: "Maximum number of results to return" },
-                safe_search: { type: "boolean", description: "Whether to filter explicit content" }
-              },
-              required: ["query"],
-              additionalProperties: false
+      completions = double("completions")
+      chat = double("chat", completions: completions)
+      expect(provider).to receive(:client).and_return(double(chat: chat))
+      expect(provider).to receive(:format_tool).with(OpenAISpecAgent::Tools::WebSearch).and_call_original
+      expect(completions).to receive(:create).with(
+        model: "gpt-test",
+        messages: [{ role: "user", content: "Search the web" }],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "WebSearch",
+              description: "Searches the web for current events, news, or factual data.",
+              parameters: {
+                type: "object",
+                properties: {
+                  query: { type: "string", description: "The precise search query to execute" },
+                  limit: { type: "integer", description: "Maximum number of results to return" },
+                  safe_search: { type: "boolean", description: "Whether to filter explicit content" }
+                },
+                required: ["query"],
+                additionalProperties: false
+              }
             }
           }
-        }
-      ]
+        ]
+      ).and_return({})
 
-      expect(provider).to receive(:client).and_return(double(chat: {}))
-      expect(provider).to receive(:format_tool).with(ResearchAgent::Tools::WebSearch).and_call_original
-
-      provider.chat(messages: [{ role: "user", content: "Search the web" }], tools: [ResearchAgent::Tools::WebSearch])
+      provider.chat(messages: [{ role: "user", content: "Search the web" }], tools: [OpenAISpecAgent::Tools::WebSearch])
     end
   end
 end

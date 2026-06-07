@@ -74,22 +74,24 @@ module OmniAgent
           }
         end
 
+        compat_tool_calls = raw_tool_calls.map do |tc|
+          fn = tc.respond_to?(:function) ? tc.function : tc["function"]
+          {
+            "id" => tc.respond_to?(:id) ? tc.id : tc["id"],
+            "type" => "function",
+            "function" => {
+              "name" => fn.respond_to?(:name) ? fn.name : fn["name"],
+              "arguments" => fn.respond_to?(:arguments) ? fn.arguments : fn["arguments"]
+            }
+          }
+        end.compact
+
         compat_raw_response = {
           "choices" => [
             {
               "message" => {
                 "content" => content,
-                "tool_calls" => raw_tool_calls.map do |tc|
-                  fn = tc.respond_to?(:function) ? tc.function : tc["function"]
-                  {
-                    "id" => tc.respond_to?(:id) ? tc.id : tc["id"],
-                    "type" => "function",
-                    "function" => {
-                      "name" => fn.respond_to?(:name) ? fn.name : fn["name"],
-                      "arguments" => fn.respond_to?(:arguments) ? fn.arguments : fn["arguments"]
-                    }
-                  }
-                end.compact.presence
+                "tool_calls" => (compat_tool_calls.empty? ? nil : compat_tool_calls)
               }.compact
             }
           ]

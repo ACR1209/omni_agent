@@ -8,5 +8,13 @@ loader.setup
 
 
 module OmniAgent
-  # Your code goes here...
+  class << self
+    def configuration
+      @configuration ||= Configuration.new
+    end
+
+    def configure
+      yield(configuration)
+    end
+  end
 end

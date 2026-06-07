@@ -4,10 +4,8 @@ require_relative "../../../lib/omni_agent/tool"
 
 RSpec.describe "Tool integration with a concrete class" do
   before do
-    module ResearchAgent
-      module Tools
-      end
-    end
+    stub_const("ToolSpecAgent", Module.new)
+    stub_const("ToolSpecAgent::Tools", Module.new)
 
     web_search_class = Class.new(OmniAgent::Tool) do
       description "Searches the web for current events, news, or factual data."
@@ -26,17 +24,17 @@ RSpec.describe "Tool integration with a concrete class" do
       end
     end
 
-    stub_const("ResearchAgent::Tools::WebSearch", web_search_class)
+    stub_const("ToolSpecAgent::Tools::WebSearch", web_search_class)
   end
 
   it "wires class metadata, schema, and execution together" do
-    expect(ResearchAgent::Tools::WebSearch.description)
+    expect(ToolSpecAgent::Tools::WebSearch.description)
       .to eq("Searches the web for current events, news, or factual data.")
 
-    expect(ResearchAgent::Tools::WebSearch.metadata)
+    expect(ToolSpecAgent::Tools::WebSearch.metadata)
       .to eq(category: :research, requires_auth: false)
 
-    expect(ResearchAgent::Tools::WebSearch.json_schema).to eq(
+    expect(ToolSpecAgent::Tools::WebSearch.json_schema).to eq(
       type: "object",
       properties: {
         query: {
@@ -57,7 +55,7 @@ RSpec.describe "Tool integration with a concrete class" do
     )
 
     expect do
-      result = ResearchAgent::Tools::WebSearch.invoke("query" => "AI safety")
+      result = ToolSpecAgent::Tools::WebSearch.invoke("query" => "AI safety")
       expect(result).to eq("Found 3 articles about AI safety...")
     end.to output("Searching for AI safety (limit: 5, safe: true)...\n").to_stdout
   end
