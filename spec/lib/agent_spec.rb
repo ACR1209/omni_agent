@@ -106,4 +106,100 @@ RSpec.describe OmniAgent::Agent do
 
     expect(agent.provider.last_chat_options).to eq(temperature: 0.6, top_p: 0.8)
   end
+
+  it "executes before_generation and after_generation around a run" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      before_generation :mark_before
+      after_generation :mark_after
+
+      attr_reader :events
+
+      def initialize(...)
+        super
+        @events = []
+      end
+
+      def mark_before
+        events << :before
+      end
+
+      def mark_after
+        events << :after
+      end
+    end
+
+    agent = agent_class.new
+    allow(agent).to receive(:available_tools).and_return([])
+
+    result = agent.run("Hello")
+
+    expect(result).to eq("ok")
+    expect(agent.events).to eq([:before, :after])
+  end
+
+  it "passes run payload to generation callbacks" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      before_generation :capture_before
+      after_generation :capture_after
+
+      attr_reader :captured
+
+      def initialize(...)
+        super
+        @captured = {}
+      end
+
+      def capture_before(payload)
+        captured[:before_input] = payload[:input]
+        captured[:before_context] = payload[:context]
+        captured[:before_messages_count] = payload[:messages].size
+      end
+
+      def capture_after(payload)
+        captured[:after_content] = payload[:response].content
+        captured[:after_messages_count] = payload[:messages].size
+      end
+    end
+
+    agent = agent_class.new
+    allow(agent).to receive(:available_tools).and_return([])
+
+    agent.run("Hello", context: { request_id: "abc" })
+
+    expect(agent.captured).to eq(
+      before_input: "Hello",
+      before_context: { request_id: "abc" },
+      before_messages_count: 2,
+      after_content: "ok",
+      after_messages_count: 3
+    )
+  end
+
+  it "requires at least one method name for before_generation" do
+    expect do
+      Class.new(described_class) do
+        before_generation
+      end
+    end.to raise_error(ArgumentError, /before_generation requires at least one method name/)
+  end
+
+  it "requires at least one method name for after_generation" do
+    expect do
+      Class.new(described_class) do
+        after_generation
+      end
+    end.to raise_error(ArgumentError, /after_generation requires at least one method name/)
+  end
+
+  it "rejects non-method callback values" do
+    expect do
+      Class.new(described_class) do
+        before_generation Object.new
+      end
+    end.to raise_error(ArgumentError, /before_generation callbacks must be method names/)
+  end
 end

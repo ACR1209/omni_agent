@@ -21,4 +21,11 @@ RSpec.describe ResearchAgent do
 
     expect(response).to include("16°C")
   end
+
+  it "logs before and after generation callbacks", :vcr do
+    agent.run("What is the weather in Quito?")
+
+    expect(agent.instance_variable_get(:@before_log)).to include("before_generation called")
+    expect(agent.instance_variable_get(:@after_log)).to include("after_generation called")
+  end
 end

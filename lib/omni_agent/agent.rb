@@ -25,10 +25,34 @@ module OmniAgent
         @provider_options = { model: name }
       end
 
+      def before_generation(*callbacks)
+        @before_generation_callbacks = configured_before_generation_callbacks + normalize_callbacks(:before_generation, callbacks)
+      end
+
+      def after_generation(*callbacks)
+        @after_generation_callbacks = configured_after_generation_callbacks + normalize_callbacks(:after_generation, callbacks)
+      end
+
       def configured_provider_name; @provider_name; end
       def configured_provider_options; @provider_options || {}; end
       def configured_model_options; @model_options || {}; end
       def configured_with_use_model?; @configured_with_use_model == true; end
+      def configured_before_generation_callbacks; @before_generation_callbacks || []; end
+      def configured_after_generation_callbacks; @after_generation_callbacks || []; end
+
+      private
+
+      def normalize_callbacks(callback_type, callbacks)
+        raise ArgumentError, "#{callback_type} requires at least one method name" if callbacks.empty?
+
+        callbacks.map do |callback|
+          unless callback.is_a?(String) || callback.is_a?(Symbol)
+            raise ArgumentError, "#{callback_type} callbacks must be method names"
+          end
+
+          callback.to_sym
+        end
+      end
     end
 
     def initialize(provider_override: nil, model_override: nil, options_override: {})
@@ -44,11 +68,14 @@ module OmniAgent
         { role: "user", content: input }
       ]
 
+      run_before_generation_callbacks(input: input, context: context, messages: messages)
+
       loop do
         response = provider.chat(messages: messages, tools: available_tools, **@chat_options)
 
         if response.content && !response.tool_calls?
           messages << { role: "assistant", content: response.content }
+          run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
           return response.content
         end
 
@@ -109,6 +136,32 @@ module OmniAgent
 
     def resolve_provider(name, model)
       OmniAgent::Providers.registry[name.to_sym].new(model: model)
+    end
+
+    def run_before_generation_callbacks(input:, context:, messages:)
+      payload = { input: input, context: context, messages: messages }
+
+      self.class.configured_before_generation_callbacks.each do |callback_name|
+        invoke_generation_callback(callback_name, payload)
+      end
+    end
+
+    def run_after_generation_callbacks(input:, context:, messages:, response:)
+      payload = { input: input, context: context, messages: messages, response: response }
+
+      self.class.configured_after_generation_callbacks.each do |callback_name|
+        invoke_generation_callback(callback_name, payload)
+      end
+    end
+
+    def invoke_generation_callback(callback_name, payload)
+      callback_method = method(callback_name)
+
+      if callback_method.arity == 0
+        public_send(callback_name)
+      else
+        public_send(callback_name, payload)
+      end
     end
 
     def system_prompt(context:)
