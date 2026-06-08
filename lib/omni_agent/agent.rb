@@ -63,12 +63,13 @@ module OmniAgent
     end
 
     def run(input, context: {})
-      run_before_generation_callbacks(input: input, context: context, messages: messages)
-
       messages = [
-        { role: "system", content: system_prompt(context: context) },
+        { role: "system", content: nil },
         { role: "user", content: input }
       ]
+
+      run_before_generation_callbacks(input: input, context: context, messages: messages)
+      messages[0][:content] = system_prompt(context: context)
 
       loop do
         response = provider.chat(messages: messages, tools: available_tools, **@chat_options)
@@ -171,7 +172,20 @@ module OmniAgent
       return "You are a helpful assistant with access to local tools." if class_name.nil?
 
       file_path = Rails.root.join("app", "agents", class_name.underscore, "prompt.md.erb")
-      ERB.new(File.read(file_path)).result_with_hash(context)
+
+      isolated_scope = Object.new
+
+      context.each do |key, value|
+        isolated_scope.instance_variable_set("@#{key}", value)
+      end
+
+      internal_vars = [:@provider, :@chat_options] # Blacklists internal instance variables
+
+      (instance_variables - internal_vars).each do |ivar|
+        isolated_scope.instance_variable_set(ivar, instance_variable_get(ivar))
+      end
+
+      ERB.new(File.read(file_path)).result(isolated_scope.instance_eval { binding })
     end
   end
 end

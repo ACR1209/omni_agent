@@ -1,7 +1,12 @@
 class ResearchAgent < OmniAgent::Agent
   provider :openai, model: "gpt-4o-mini"
   before_generation :log_before
+  before_generation :add_variable_to_context
   after_generation :log_after
+
+  def add_variable_to_context
+    @user_name = "Test User"
+  end
 
   def log_before
     @before_log ||= []
