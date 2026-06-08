@@ -63,12 +63,12 @@ module OmniAgent
     end
 
     def run(input, context: {})
+      run_before_generation_callbacks(input: input, context: context, messages: messages)
+
       messages = [
         { role: "system", content: system_prompt(context: context) },
         { role: "user", content: input }
       ]
-
-      run_before_generation_callbacks(input: input, context: context, messages: messages)
 
       loop do
         response = provider.chat(messages: messages, tools: available_tools, **@chat_options)
