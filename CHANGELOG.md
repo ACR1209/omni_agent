@@ -13,3 +13,8 @@ All notable changes to this project will be documented in this file.
 - Tool DSL with JSON schema generation.
 - Rails generators and tasks for agent scaffolding.
 - RSpec coverage for agent runtime, providers, tools, and integration flows.
+
+## [0.1.1] - 2026-06-09
+
+### Changed
+- Lowered Rails version needed.
