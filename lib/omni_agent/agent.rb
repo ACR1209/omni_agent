@@ -34,7 +34,9 @@ module OmniAgent
       end
 
       def tags(*tag_names)
-        @configured_tags = (configured_tags + normalize_tags(tag_names)).uniq
+        return @configured_tags || [] if tag_names.empty?
+
+        @configured_tags = (tags + normalize_tags(tag_names)).uniq
       end
 
       def configured_provider_name; @provider_name; end
@@ -43,7 +45,7 @@ module OmniAgent
       def configured_with_use_model?; @configured_with_use_model == true; end
       def configured_before_generation_callbacks; @before_generation_callbacks || []; end
       def configured_after_generation_callbacks; @after_generation_callbacks || []; end
-      def configured_tags; @configured_tags || []; end
+      def configured_tags; tags; end
 
       private
 
@@ -88,8 +90,10 @@ module OmniAgent
       run_before_generation_callbacks(input: input, context: context, messages: messages)
       messages[0][:content] = system_prompt(context: context)
 
+      filtered_tools = tool_filter(tools: available_tools, agent_tags: self.class.tags)
+
       loop do
-        response = provider.chat(messages: messages, tools: available_tools, **@chat_options)
+        response = provider.chat(messages: messages, tools: filtered_tools, **@chat_options)
 
         if response.content && !response.tool_calls?
           messages << { role: "assistant", content: response.content }
@@ -108,7 +112,7 @@ module OmniAgent
           tool_args = tool_call[:arguments]
           tool_id   = tool_call[:id]
 
-          tool_class = available_tools.find { |t| t.name.demodulize == tool_name }
+          tool_class = filtered_tools.find { |t| t.name.demodulize == tool_name }
 
           if tool_class
             begin
@@ -151,6 +155,10 @@ module OmniAgent
     end
 
     private
+
+    def tool_filter(tools:, agent_tags:)
+      tools
+    end
 
     def resolve_provider(name, model)
       OmniAgent::Providers.registry[name.to_sym].new(model: model)

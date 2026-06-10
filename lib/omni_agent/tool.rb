@@ -12,6 +12,16 @@ module OmniAgent
         @metadata || {}
       end
 
+      def tags(*tag_names)
+        return @tags || [] if tag_names.empty?
+
+        @tags = (tags + normalize_tags(tag_names)).uniq
+      end
+
+      def configured_tags
+        tags
+      end
+
       def input(&block)
         if block_given?
           builder = SchemaBuilder.new
@@ -34,6 +44,20 @@ module OmniAgent
       def invoke(arguments_hash)
         kwargs = arguments_hash.transform_keys(&:to_sym)
         new.execute(**kwargs)
+      end
+
+      private
+
+      def normalize_tags(tag_names)
+        raise ArgumentError, "tags requires at least one tag" if tag_names.empty?
+
+        tag_names.map do |tag_name|
+          unless tag_name.is_a?(String) || tag_name.is_a?(Symbol)
+            raise ArgumentError, "tags must be strings or symbols"
+          end
+
+          tag_name.to_sym
+        end
       end
     end
 

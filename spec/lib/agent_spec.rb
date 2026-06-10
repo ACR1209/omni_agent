@@ -208,15 +208,15 @@ RSpec.describe OmniAgent::Agent do
       tags :math, "person", :math
     end
 
-    expect(agent_class.configured_tags).to eq([:math, :person])
+    expect(agent_class.tags).to eq([:math, :person])
   end
 
-  it "requires at least one tag for tags DSL" do
-    expect do
-      Class.new(described_class) do
-        tags
-      end
-    end.to raise_error(ArgumentError, /tags requires at least one tag/)
+  it "returns current tags when called with no arguments" do
+    agent_class = Class.new(described_class) do
+      tags :math
+    end
+
+    expect(agent_class.tags).to eq([:math])
   end
 
   it "rejects non string and non symbol tag values" do
@@ -241,5 +241,105 @@ RSpec.describe OmniAgent::Agent do
     agent.run("Hello")
 
     expect(agent.provider.last_chat_options).to eq(temperature: 0.4)
+  end
+
+  it "allows overriding tool_filter to select tools by tool tags" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    math_tool = Class.new(OmniAgent::Tool) do
+      tags :math
+    end
+
+    people_tool = Class.new(OmniAgent::Tool) do
+      tags :person
+    end
+
+    agent_class = Class.new(described_class) do
+      def tool_filter(tools:, agent_tags:)
+        tools.select { |tool_class| tool_class.tags.include?(:math) }
+      end
+    end
+
+    agent = agent_class.new
+
+    filtered = agent.send(:tool_filter, tools: [math_tool, people_tool], agent_tags: agent_class.tags)
+
+    expect(filtered).to eq([math_tool])
+  end
+
+  it "allows overriding tool_filter to select tools by metadata" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    research_tool = Class.new(OmniAgent::Tool) do
+      metadata domain: :research
+    end
+
+    utility_tool = Class.new(OmniAgent::Tool) do
+      metadata domain: :utility
+    end
+
+    agent_class = Class.new(described_class) do
+      def tool_filter(tools:, agent_tags:)
+        tools.select { |tool_class| tool_class.metadata[:domain] == :research }
+      end
+    end
+
+    agent = agent_class.new
+
+    filtered = agent.send(:tool_filter, tools: [research_tool, utility_tool], agent_tags: agent_class.tags)
+
+    expect(filtered).to eq([research_tool])
+  end
+
+  it "allows overriding tool_filter to select tools using agent tags" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    math_tool = Class.new(OmniAgent::Tool) do
+      tags :math
+    end
+
+    people_tool = Class.new(OmniAgent::Tool) do
+      tags :person
+    end
+
+    agent_class = Class.new(described_class) do
+      tags :math
+
+      def tool_filter(tools:, agent_tags:)
+        tools.select { |tool_class| (tool_class.tags & agent_tags).any? }
+      end
+    end
+
+    agent = agent_class.new
+
+    filtered = agent.send(:tool_filter, tools: [math_tool, people_tool], agent_tags: agent_class.tags)
+
+    expect(filtered).to eq([math_tool])
+  end
+
+  it "uses tool_filter result for provider chat tools" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    alpha_tool = Class.new(OmniAgent::Tool)
+    beta_tool = Class.new(OmniAgent::Tool)
+
+    agent_class = Class.new(described_class) do
+      def tool_filter(tools:, agent_tags:)
+        tools.take(1)
+      end
+    end
+
+    agent = agent_class.new
+    captured_tools = nil
+
+    allow(agent).to receive(:available_tools).and_return([alpha_tool, beta_tool])
+    allow(agent.provider).to receive(:chat) do |messages:, tools: [], **_options|
+      captured_tools = tools
+      OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
+    end
+
+    agent.run("Hello")
+
+    expect(captured_tools).to eq([alpha_tool])
   end
 end

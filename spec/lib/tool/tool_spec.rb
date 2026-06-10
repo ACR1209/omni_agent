@@ -35,6 +35,35 @@ RSpec.describe OmniAgent::Tool do
     end
   end
 
+  describe ".tags" do
+    it "returns an empty array by default" do
+      klass = Class.new(described_class)
+
+      expect(klass.tags).to eq([])
+    end
+
+    it "stores normalized tags as symbols and de-duplicates" do
+      klass = Class.new(described_class)
+
+      klass.tags(:math, "person", :math)
+
+      expect(klass.tags).to eq([:math, :person])
+    end
+
+    it "returns current tags when called with no arguments" do
+      klass = Class.new(described_class)
+      klass.tags(:math)
+
+      expect(klass.tags).to eq([:math])
+    end
+
+    it "rejects non string and non symbol tags" do
+      klass = Class.new(described_class)
+
+      expect { klass.tags(:math, 123) }.to raise_error(ArgumentError, /tags must be strings or symbols/)
+    end
+  end
+
   describe ".input and .json_schema" do
     it "returns an empty schema when no input block has been defined" do
       klass = Class.new(described_class)
