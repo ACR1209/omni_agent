@@ -18,6 +18,6 @@ Gem::Specification.new do |spec|
     Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md", "CHANGELOG.md"]
   end
 
-  spec.add_dependency "rails", ">= 8.1.3"
+  spec.add_dependency "rails", ">= 7.0"
   spec.add_dependency "zeitwerk", "~> 2.6"
 end
