@@ -31,7 +31,11 @@ module Dummy
     end
 
     config.to_prepare do
-      Dir[Rails.root.join("app/agents/**/*.rb")].sort.each do |file|
+      agent_files = Dir[Rails.root.join("app/agents/*/*.rb")].reject { |file| file.include?("/tools/") }.sort
+      all_agent_files = Dir[Rails.root.join("app/agents/**/*.rb")].sort
+      nested_files = all_agent_files - agent_files
+
+      (agent_files + nested_files).each do |file|
         require_dependency file
       end
     end

@@ -16,6 +16,10 @@ RSpec.describe OmniAgent::Configuration do
     it "uses :openai as the default provider" do
       expect(OmniAgent.configuration.default_provider).to eq(:openai)
     end
+
+    it "uses gpt-4o-mini as the default model" do
+      expect(OmniAgent.configuration.default_model).to eq("gpt-4o-mini")
+    end
   end
 
   describe ".configure" do
@@ -25,6 +29,14 @@ RSpec.describe OmniAgent::Configuration do
       end
 
       expect(OmniAgent.configuration.default_provider).to eq(:test_provider)
+    end
+
+    it "allows an initializer-style configure block to override the default model" do
+      OmniAgent.configure do |config|
+        config.default_model = "gpt-4.1-mini"
+      end
+
+      expect(OmniAgent.configuration.default_model).to eq("gpt-4.1-mini")
     end
   end
 end

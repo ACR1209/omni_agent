@@ -4,6 +4,7 @@ require "zeitwerk"
 
 loader = Zeitwerk::Loader.for_gem
 loader.inflector.inflect("openai" => "OpenAI")
+loader.ignore(File.expand_path("generators", __dir__))
 loader.setup
 
 
