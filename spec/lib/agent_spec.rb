@@ -202,4 +202,44 @@ RSpec.describe OmniAgent::Agent do
       end
     end.to raise_error(ArgumentError, /before_generation callbacks must be method names/)
   end
+
+  it "stores normalized tags from the tags DSL" do
+    agent_class = Class.new(described_class) do
+      tags :math, "person", :math
+    end
+
+    expect(agent_class.configured_tags).to eq([:math, :person])
+  end
+
+  it "requires at least one tag for tags DSL" do
+    expect do
+      Class.new(described_class) do
+        tags
+      end
+    end.to raise_error(ArgumentError, /tags requires at least one tag/)
+  end
+
+  it "rejects non string and non symbol tag values" do
+    expect do
+      Class.new(described_class) do
+        tags :math, 123
+      end
+    end.to raise_error(ArgumentError, /tags must be strings or symbols/)
+  end
+
+  it "keeps tags internal and does not send them to provider chat" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      tags :math, :person
+      options temperature: 0.4
+    end
+
+    agent = agent_class.new
+    allow(agent).to receive(:available_tools).and_return([])
+
+    agent.run("Hello")
+
+    expect(agent.provider.last_chat_options).to eq(temperature: 0.4)
+  end
 end

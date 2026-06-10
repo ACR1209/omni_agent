@@ -33,12 +33,17 @@ module OmniAgent
         @after_generation_callbacks = configured_after_generation_callbacks + normalize_callbacks(:after_generation, callbacks)
       end
 
+      def tags(*tag_names)
+        @configured_tags = (configured_tags + normalize_tags(tag_names)).uniq
+      end
+
       def configured_provider_name; @provider_name; end
       def configured_provider_options; @provider_options || {}; end
       def configured_model_options; @model_options || {}; end
       def configured_with_use_model?; @configured_with_use_model == true; end
       def configured_before_generation_callbacks; @before_generation_callbacks || []; end
       def configured_after_generation_callbacks; @after_generation_callbacks || []; end
+      def configured_tags; @configured_tags || []; end
 
       private
 
@@ -51,6 +56,18 @@ module OmniAgent
           end
 
           callback.to_sym
+        end
+      end
+
+      def normalize_tags(tag_names)
+        raise ArgumentError, "tags requires at least one tag" if tag_names.empty?
+
+        tag_names.map do |tag_name|
+          unless tag_name.is_a?(String) || tag_name.is_a?(Symbol)
+            raise ArgumentError, "tags must be strings or symbols"
+          end
+
+          tag_name.to_sym
         end
       end
     end
