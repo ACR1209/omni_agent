@@ -39,6 +39,19 @@ module OmniAgent
         @configured_tags = (tags + normalize_tags(tag_names)).uniq
       end
 
+      def with(context = nil, provider_override: nil, model_override: nil, options_override: {}, **context_keywords)
+        merged_context = {}
+        merged_context.merge!(context) if context.is_a?(Hash)
+        merged_context.merge!(context_keywords)
+
+        new(
+          provider_override: provider_override,
+          model_override: model_override,
+          options_override: options_override,
+          context_override: merged_context
+        )
+      end
+
       def configured_provider_name; @provider_name; end
       def configured_provider_options; @provider_options || {}; end
       def configured_model_options; @model_options || {}; end
@@ -74,14 +87,17 @@ module OmniAgent
       end
     end
 
-    def initialize(provider_override: nil, model_override: nil, options_override: {})
+    def initialize(provider_override: nil, model_override: nil, options_override: {}, context_override: {})
       target_provider_name = provider_override || self.class.configured_provider_name || OmniAgent.configuration.default_provider
       target_model = model_override || self.class.configured_provider_options[:model]
       @chat_options = self.class.configured_model_options.merge(options_override)
       @provider = resolve_provider(target_provider_name, target_model)
+      @default_context = context_override || {}
     end
 
     def run(input, context: {})
+      context = @default_context.merge(context || {})
+
       messages = [
         { role: "system", content: nil },
         { role: "user", content: input }

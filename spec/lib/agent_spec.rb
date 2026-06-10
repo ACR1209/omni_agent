@@ -342,4 +342,46 @@ RSpec.describe OmniAgent::Agent do
 
     expect(captured_tools).to eq([alpha_tool])
   end
+
+  it "supports class-level with helper to prefill context" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      before_generation :capture_before
+
+      attr_reader :captured_context
+
+      def capture_before(payload)
+        @captured_context = payload[:context]
+      end
+    end
+
+    agent = agent_class.with(user: "Alice")
+    allow(agent).to receive(:available_tools).and_return([])
+
+    agent.run("Hello")
+
+    expect(agent.captured_context).to eq(user: "Alice")
+  end
+
+  it "merges with helper context with run context, preferring run context" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      before_generation :capture_before
+
+      attr_reader :captured_context
+
+      def capture_before(payload)
+        @captured_context = payload[:context]
+      end
+    end
+
+    agent = agent_class.with(user: "Alice", locale: "en")
+    allow(agent).to receive(:available_tools).and_return([])
+
+    agent.run("Hello", context: { locale: "es", request_id: "123" })
+
+    expect(agent.captured_context).to eq(user: "Alice", locale: "es", request_id: "123")
+  end
 end
