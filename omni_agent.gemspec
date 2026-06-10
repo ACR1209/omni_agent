@@ -5,21 +5,17 @@ Gem::Specification.new do |spec|
   spec.version     = OmniAgent::VERSION
   spec.authors     = [ "ACR1209" ]
   spec.email       = [ "andrescoronel1209@gmail.com" ]
-  spec.homepage    = "TODO"
-  spec.summary     = "TODO: Summary of OmniAgent."
-  spec.description = "TODO: Description of OmniAgent."
+  spec.homepage    = "https://github.com/ACR1209/omni_agent"
+  spec.summary     = "Rails engine for building AI agents with tools."
+  spec.description = "OmniAgent provides a Rails-native framework for defining AI agents, tool schemas, prompt templates, callbacks, and provider-backed generation workflows."
   spec.license     = "MIT"
 
-  # Prevent pushing this gem to RubyGems.org. To allow pushes either set the "allowed_push_host"
-  # to allow pushing to a single host or delete this section to allow pushing to any host.
-  spec.metadata["allowed_push_host"] = "TODO: Set to 'http://mygemserver.com'"
-
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "TODO: Put your gem's public repo URL here."
-  spec.metadata["changelog_uri"] = "TODO: Put your gem's CHANGELOG.md URL here."
+  spec.metadata["source_code_uri"] = "https://github.com/ACR1209/omni_agent"
+  spec.metadata["changelog_uri"] = "https://github.com/ACR1209/omni_agent/blob/main/CHANGELOG.md"
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
-    Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
+    Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md", "CHANGELOG.md"]
   end
 
   spec.add_dependency "rails", ">= 8.1.3"
