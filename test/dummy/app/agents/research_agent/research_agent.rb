@@ -4,6 +4,8 @@ class ResearchAgent < OmniAgent::Agent
   before_generation :add_variable_to_context
   after_generation :log_after
 
+  private
+
   def add_variable_to_context
     @user_name = "Test User"
   end

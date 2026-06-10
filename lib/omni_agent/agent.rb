@@ -2,6 +2,41 @@ module OmniAgent
   class Agent
     attr_reader :provider
 
+    module ImplicitRunEntrypoints
+      def method_added(method_name)
+        super
+
+        return if @_omni_agent_wrapping_method
+        return if method_name.to_s.start_with?("__omni_agent_original_")
+        return unless instance_methods(false).include?(method_name)
+        return if OmniAgent::Agent.instance_methods(false).include?(method_name)
+
+        original_method = instance_method(method_name)
+        return unless original_method.arity == 0
+
+        alias_name = "__omni_agent_original_#{method_name}".to_sym
+        return if instance_methods(false).include?(alias_name)
+
+        @_omni_agent_wrapping_method = true
+        alias_method alias_name, method_name
+
+        define_method(method_name) do |input = nil, context: {}, **context_keywords|
+          if input.nil? && context == {} && context_keywords.empty?
+            run_alias_entrypoint_logic(alias_name)
+          else
+            merged_context = context.is_a?(Hash) ? context.dup : {}
+            merged_context.merge!(context_keywords)
+
+            run_input = run_alias_entrypoint_logic(alias_name, fallback_input: input)
+
+            run(run_input, context: merged_context, prompt_method: method_name)
+          end
+        end
+      ensure
+        @_omni_agent_wrapping_method = false
+      end
+    end
+
     class << self
       def provider(name, **options)
         if configured_with_use_model?
@@ -39,6 +74,16 @@ module OmniAgent
         @configured_tags = (tags + normalize_tags(tag_names)).uniq
       end
 
+      def run_aliases(*method_names)
+        aliases = normalize_callbacks(:run_aliases, method_names)
+
+        aliases.each do |method_name|
+          define_method(method_name) do |input, context: {}|
+            run(input, context: context, prompt_method: method_name)
+          end
+        end
+      end
+
       def with(context = nil, provider_override: nil, model_override: nil, options_override: {}, **context_keywords)
         merged_context = {}
         merged_context.merge!(context) if context.is_a?(Hash)
@@ -59,6 +104,11 @@ module OmniAgent
       def configured_before_generation_callbacks; @before_generation_callbacks || []; end
       def configured_after_generation_callbacks; @after_generation_callbacks || []; end
       def configured_tags; tags; end
+
+      def inherited(subclass)
+        super
+        subclass.extend(ImplicitRunEntrypoints)
+      end
 
       private
 
@@ -95,7 +145,7 @@ module OmniAgent
       @default_context = context_override || {}
     end
 
-    def run(input, context: {})
+    def run(input, context: {}, prompt_method: nil)
       context = @default_context.merge(context || {})
 
       messages = [
@@ -104,7 +154,7 @@ module OmniAgent
       ]
 
       run_before_generation_callbacks(input: input, context: context, messages: messages)
-      messages[0][:content] = system_prompt(context: context)
+      messages[0][:content] = system_prompt(context: context, prompt_method: prompt_method)
 
       filtered_tools = tool_filter(tools: available_tools, agent_tags: self.class.tags)
 
@@ -176,6 +226,16 @@ module OmniAgent
       tools
     end
 
+    def run_alias_entrypoint_logic(alias_name, fallback_input: nil)
+      @message = nil
+      result = public_send(alias_name)
+      computed_message = result.nil? ? @message : result
+
+      return computed_message if fallback_input.nil?
+
+      fallback_input
+    end
+
     def resolve_provider(name, model)
       OmniAgent::Providers.registry[name.to_sym].new(model: model)
     end
@@ -197,22 +257,34 @@ module OmniAgent
     end
 
     def invoke_generation_callback(callback_name, payload)
-      callback_method = method(callback_name)
+      original_callback_name = "__omni_agent_original_#{callback_name}".to_sym
+      callback_target = if respond_to?(original_callback_name, true)
+        original_callback_name
+      else
+        callback_name
+      end
+
+      callback_method = self.class.instance_method(callback_target)
 
       if callback_method.arity == 0
-        public_send(callback_name)
+        __send__(callback_target)
       else
-        public_send(callback_name, payload)
+        __send__(callback_target, payload)
       end
     end
 
-    def system_prompt(context:)
+    def system_prompt(context:, prompt_method: nil)
       return "You are a helpful assistant with access to local tools." unless defined?(Rails)
 
       class_name = self.class.name
       return "You are a helpful assistant with access to local tools." if class_name.nil?
 
-      file_path = Rails.root.join("app", "agents", class_name.underscore, "prompt.md.erb")
+      agent_dir = inflector_underscore(class_name)
+      base_file_path = Rails.root.join("app", "agents", agent_dir, "prompt.md.erb")
+      method_file_path = if prompt_method
+        prompt_method_name = inflector_underscore(prompt_method.to_s)
+        Rails.root.join("app", "agents", agent_dir, "#{prompt_method_name}.md.erb")
+      end
 
       isolated_scope = Object.new
 
@@ -226,7 +298,31 @@ module OmniAgent
         isolated_scope.instance_variable_set(ivar, instance_variable_get(ivar))
       end
 
+      base_prompt = render_prompt_template(base_file_path, isolated_scope)
+      method_prompt = render_prompt_template(method_file_path, isolated_scope)
+
+      prompts = [base_prompt, method_prompt].compact.reject(&:empty?)
+      return prompts.join("\n\n") if prompts.any?
+
+      "You are a helpful assistant with access to local tools."
+    end
+
+    def render_prompt_template(file_path, isolated_scope)
+      return nil unless file_path && File.exist?(file_path)
+
       ERB.new(File.read(file_path)).result(isolated_scope.instance_eval { binding })
+    end
+
+    def inflector_underscore(text)
+      return text.underscore if text.respond_to?(:underscore)
+
+      text
+        .to_s
+        .gsub("::", "/")
+        .gsub(/([A-Z]+)([A-Z][a-z])/, "\\1_\\2")
+        .gsub(/([a-z\d])([A-Z])/, "\\1_\\2")
+        .tr("-", "_")
+        .downcase
     end
   end
 end

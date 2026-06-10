@@ -2,6 +2,9 @@ require_relative "../spec_helper"
 require_relative "../../lib/omni_agent"
 require_relative "../../lib/omni_agent/agent"
 require_relative "../../lib/omni_agent/errors"
+require "fileutils"
+require "pathname"
+require "tmpdir"
 
 RSpec.describe OmniAgent::Agent do
   around do |example|
@@ -383,5 +386,184 @@ RSpec.describe OmniAgent::Agent do
     agent.run("Hello", context: { locale: "es", request_id: "123" })
 
     expect(agent.captured_context).to eq(user: "Alice", locale: "es", request_id: "123")
+  end
+
+  it "uses base prompt when method prompt file is missing" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    Dir.mktmpdir do |dir|
+      app_agents_dir = File.join(dir, "app", "agents", "support_agent")
+      FileUtils.mkdir_p(app_agents_dir)
+      File.write(File.join(app_agents_dir, "prompt.md.erb"), "Base prompt for <%= @user %>")
+
+      rails_class = Class.new do
+        define_singleton_method(:root) { Pathname.new(dir) }
+      end
+
+      stub_const("Rails", rails_class)
+
+      support_agent_class = Class.new(described_class) do
+        run_aliases :triage
+      end
+      stub_const("SupportAgent", support_agent_class)
+
+      agent = SupportAgent.new
+      captured_system_prompt = nil
+
+      allow(agent).to receive(:available_tools).and_return([])
+      allow(agent.provider).to receive(:chat) do |messages:, tools: [], **_options|
+        captured_system_prompt = messages.first[:content]
+        OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
+      end
+
+      agent.triage("Handle ticket", context: { user: "Alice" })
+
+      expect(captured_system_prompt).to eq("Base prompt for Alice")
+    end
+  end
+
+  it "combines base prompt and method prompt when both files exist" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    Dir.mktmpdir do |dir|
+      app_agents_dir = File.join(dir, "app", "agents", "support_agent")
+      FileUtils.mkdir_p(app_agents_dir)
+      File.write(File.join(app_agents_dir, "prompt.md.erb"), "Base prompt for <%= @user %>")
+      File.write(File.join(app_agents_dir, "triage.md.erb"), "Triage instructions for <%= @topic %>")
+
+      rails_class = Class.new do
+        define_singleton_method(:root) { Pathname.new(dir) }
+      end
+
+      stub_const("Rails", rails_class)
+
+      support_agent_class = Class.new(described_class) do
+        run_aliases :triage
+      end
+      stub_const("SupportAgent", support_agent_class)
+
+      agent = SupportAgent.new
+      captured_system_prompt = nil
+
+      allow(agent).to receive(:available_tools).and_return([])
+      allow(agent.provider).to receive(:chat) do |messages:, tools: [], **_options|
+        captured_system_prompt = messages.first[:content]
+        OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
+      end
+
+      agent.triage("Handle ticket", context: { user: "Alice", topic: "refund" })
+
+      expect(captured_system_prompt).to eq("Base prompt for Alice\n\nTriage instructions for refund")
+    end
+  end
+
+  it "allows plain zero-arity methods to act as run entrypoints when called with input" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    Dir.mktmpdir do |dir|
+      app_agents_dir = File.join(dir, "app", "agents", "spec_test_agent")
+      FileUtils.mkdir_p(app_agents_dir)
+      File.write(File.join(app_agents_dir, "prompt.md.erb"), "Base prompt")
+      File.write(File.join(app_agents_dir, "test.md.erb"), "Method prompt for <%= @user %>")
+
+      rails_class = Class.new do
+        define_singleton_method(:root) { Pathname.new(dir) }
+      end
+
+      stub_const("Rails", rails_class)
+
+      spec_test_agent_class = Class.new(described_class) do
+        def test
+          "no-arg behavior"
+        end
+      end
+      stub_const("SpecTestAgent", spec_test_agent_class)
+
+      agent = SpecTestAgent.new
+      captured_system_prompt = nil
+
+      allow(agent).to receive(:available_tools).and_return([])
+      allow(agent.provider).to receive(:chat) do |messages:, tools: [], **_options|
+        captured_system_prompt = messages.first[:content]
+        OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
+      end
+
+      response = agent.test("Hello", user: "Alice")
+
+      expect(response).to eq("ok")
+      expect(captured_system_prompt).to eq("Base prompt\n\nMethod prompt for Alice")
+      expect(agent.test).to eq("no-arg behavior")
+    end
+  end
+
+  it "allows alias entrypoint methods to return @message without explicit return" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      def test
+        @message = "message from ivar"
+      end
+    end
+
+    agent = agent_class.new
+
+    expect(agent.test).to eq("message from ivar")
+  end
+
+  it "always runs alias entrypoint logic before generation" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      attr_reader :before_run_logic_called
+
+      def test
+        @before_run_logic_called = true
+        @message = "computed input"
+      end
+    end
+
+    agent = agent_class.new
+    allow(agent).to receive(:available_tools).and_return([])
+
+    result = agent.test("Hello")
+
+    expect(result).to eq("ok")
+    expect(agent.before_run_logic_called).to eq(true)
+  end
+
+  it "supports private callback methods without exposing them as public entrypoints" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      before_generation :mark_before
+      after_generation :mark_after
+
+      attr_reader :events
+
+      def initialize(...)
+        super
+        @events = []
+      end
+
+      private
+
+      def mark_before
+        events << :before
+      end
+
+      def mark_after
+        events << :after
+      end
+    end
+
+    agent = agent_class.new
+    allow(agent).to receive(:available_tools).and_return([])
+
+    result = agent.run("Hello")
+
+    expect(result).to eq("ok")
+    expect(agent.events).to eq([:before, :after])
+    expect(agent.respond_to?(:mark_before)).to be(false)
+    expect { agent.mark_before("input") }.to raise_error(NoMethodError)
   end
 end

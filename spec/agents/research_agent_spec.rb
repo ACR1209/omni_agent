@@ -42,4 +42,15 @@ RSpec.describe ResearchAgent do
     expect(captured_messages.first[:role]).to eq("system")
     expect(captured_messages.first[:content]).to include("Current user: Test User")
   end
+
+  it "keeps lifecycle callbacks private while still executing them", :vcr do
+    agent.run("What is the weather in Quito?")
+
+    expect(agent.instance_variable_get(:@before_log)).to include("before_generation called")
+    expect(agent.instance_variable_get(:@after_log)).to include("after_generation called")
+    expect(agent.respond_to?(:log_before)).to be(false)
+    expect(agent.respond_to?(:log_after)).to be(false)
+    expect(agent.respond_to?(:add_variable_to_context)).to be(false)
+    expect { agent.log_before }.to raise_error(NoMethodError)
+  end
 end
