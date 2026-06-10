@@ -25,5 +25,15 @@ module Dummy
     #
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
+
+    initializer "dummy.load_agents_manually" do
+      Rails.autoloaders.main.ignore(Rails.root.join("app/agents"))
+    end
+
+    config.to_prepare do
+      Dir[Rails.root.join("app/agents/**/*.rb")].sort.each do |file|
+        require_dependency file
+      end
+    end
   end
 end
