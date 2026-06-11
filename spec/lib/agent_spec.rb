@@ -447,6 +447,50 @@ RSpec.describe OmniAgent::Agent do
     expect(result).to eq(response_with_tool_call)
   end
 
+  it "does not send assistant content as nil when continuing after tool calls" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    stub_const("ContinueTool", Class.new(OmniAgent::Tool) do
+      def execute(**_args)
+        "tool result"
+      end
+    end)
+
+    agent_class = Class.new(described_class)
+    agent = agent_class.new
+
+    response_with_tool_call = OmniAgent::Providers::Response.new(
+      content: nil,
+      raw_response: {},
+      tool_calls: [
+        {
+          id: "call_1",
+          name: "ContinueTool",
+          arguments: {}
+        }
+      ]
+    )
+
+    final_response = OmniAgent::Providers::Response.new(content: "done", raw_response: {}, tool_calls: [])
+    captured_second_messages = nil
+
+    allow(agent).to receive(:available_tools).and_return([ ContinueTool ])
+    expect(agent.provider).to receive(:chat).ordered.and_return(response_with_tool_call)
+    expect(agent.provider).to receive(:chat).ordered do |messages:, tools: [], **_options|
+      captured_second_messages = messages
+      final_response
+    end
+
+    result = agent.run("Hello")
+
+    assistant_message = captured_second_messages[2]
+    expect(assistant_message[:role]).to eq("assistant")
+    expect(assistant_message.key?(:content)).to be(false)
+    expect(assistant_message[:tool_calls]).to be_a(Array)
+    expect(assistant_message[:tool_calls].first.dig("function", "name")).to eq("ContinueTool")
+    expect(result).to eq(final_response)
+  end
+
   it "supports class-level with helper to prefill context" do
     OmniAgent.configure { |config| config.default_provider = :test_provider }
 

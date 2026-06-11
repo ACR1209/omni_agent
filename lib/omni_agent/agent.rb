@@ -168,11 +168,7 @@ module OmniAgent
           return response
         end
 
-        messages << {
-          role: "assistant",
-          content: response.content,
-          tool_calls: response.raw_response.dig("choices", 0, "message", "tool_calls")
-        }
+        messages << build_assistant_tool_call_message(response)
 
         response.tool_calls.each do |tool_call|
           tool_name = tool_call[:name]
@@ -257,6 +253,39 @@ module OmniAgent
         normalized = message.transform_keys(&:to_sym)
         normalized.compact
       end
+    end
+
+    def build_assistant_tool_call_message(response)
+      message = { role: "assistant" }
+      message[:content] = response.content unless response.content.nil?
+
+      raw_tool_calls = response.raw_response.is_a?(Hash) ? response.raw_response.dig("choices", 0, "message", "tool_calls") : nil
+      normalized_tool_calls = normalize_tool_calls_for_message(raw_tool_calls, response.tool_calls)
+      message[:tool_calls] = normalized_tool_calls unless normalized_tool_calls.empty?
+
+      message
+    end
+
+    def normalize_tool_calls_for_message(raw_tool_calls, parsed_tool_calls)
+      return raw_tool_calls if raw_tool_calls.is_a?(Array) && !raw_tool_calls.empty?
+
+      Array(parsed_tool_calls).map do |tool_call|
+        {
+          "id" => tool_call[:id],
+          "type" => "function",
+          "function" => {
+            "name" => tool_call[:name],
+            "arguments" => serialize_tool_arguments(tool_call[:arguments])
+          }
+        }
+      end
+    end
+
+    def serialize_tool_arguments(arguments)
+      return arguments if arguments.is_a?(String)
+      return JSON.generate(arguments) if defined?(JSON)
+
+      arguments.to_s
     end
 
     def run_alias_entrypoint_logic(alias_name, fallback_input: nil)

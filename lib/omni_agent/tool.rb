@@ -26,7 +26,7 @@ module OmniAgent
         if block_given?
           builder = SchemaBuilder.new
           builder.instance_eval(&block)
-          
+
           @properties = builder.properties
           @required = builder.required_fields
         end
@@ -37,7 +37,7 @@ module OmniAgent
           type: "object",
           properties: @properties || {},
           required: @required || [],
-          additionalProperties: false 
+          additionalProperties: false
         }
       end
 

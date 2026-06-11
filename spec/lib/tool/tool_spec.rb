@@ -47,14 +47,14 @@ RSpec.describe OmniAgent::Tool do
 
       klass.tags(:math, "person", :math)
 
-      expect(klass.tags).to eq([:math, :person])
+      expect(klass.tags).to eq([ :math, :person ])
     end
 
     it "returns current tags when called with no arguments" do
       klass = Class.new(described_class)
       klass.tags(:math)
 
-      expect(klass.tags).to eq([:math])
+      expect(klass.tags).to eq([ :math ])
     end
 
     it "rejects non string and non symbol tags" do
@@ -101,7 +101,7 @@ RSpec.describe OmniAgent::Tool do
             additionalProperties: false
           }
         },
-        required: ["query", "filters"],
+        required: [ "query", "filters" ],
         additionalProperties: false
       )
     end
