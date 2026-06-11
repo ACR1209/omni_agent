@@ -30,6 +30,7 @@ RSpec.describe OmniAgent::Providers::OpenAI do
     expect(result).to be_a(OmniAgent::Providers::Response)
     expect(result.content).to eq("Hi there")
     expect(result.raw_response).to eq(raw_response)
+    expect(result.raw_request).to eq(model: "gpt-test", messages: messages)
   end
 
   it "uses gpt-4o-mini as the default model" do
@@ -86,6 +87,7 @@ RSpec.describe OmniAgent::Providers::OpenAI do
     result = described_class.new(api_key: "token", model: "gpt-test").chat(messages: messages)
 
     expect(result.raw_response).to eq(raw_response)
+    expect(result.raw_request).to eq(model: "gpt-test", messages: messages)
     expect(result.raw_response["usage"]).to eq({ "prompt_tokens" => 10, "completion_tokens" => 4, "total_tokens" => 14 })
   end
 

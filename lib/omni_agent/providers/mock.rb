@@ -8,6 +8,11 @@ module OmniAgent
 
         OmniAgent::Providers::Response.new(
           content: LOREM_IPSUM,
+          raw_request: {
+            model: model,
+            messages: messages,
+            tools: tools
+          },
           raw_response: {
             "choices" => [
               {

@@ -14,6 +14,7 @@ RSpec.describe OmniAgent::Providers::Mock do
       expect(response).to be_a(OmniAgent::Providers::Response)
       expect(response.content).to eq("Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
       expect(response.tool_calls).to eq([])
+      expect(response.raw_request).to eq(model: "mock", messages: [ { role: "user", content: "Hello" } ], tools: [])
     end
 
     it "ignores tools and options" do

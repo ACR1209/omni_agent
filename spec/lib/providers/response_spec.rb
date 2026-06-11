@@ -3,16 +3,18 @@ require_relative "../../../lib/omni_agent/providers/response"
 
 RSpec.describe OmniAgent::Providers::Response do
   describe "#initialize" do
-    it "sets content, tool_calls, and raw_response" do
+    it "sets content, tool_calls, raw_response, and raw_request" do
       response = described_class.new(
         content: "hi",
         tool_calls: [ { name: "search" } ],
-        raw_response: { "id" => "123" }
+        raw_response: { "id" => "123" },
+        raw_request: { model: "gpt-test" }
       )
 
       expect(response.content).to eq("hi")
       expect(response.tool_calls).to eq([ { name: "search" } ])
       expect(response.raw_response).to eq({ "id" => "123" })
+      expect(response.raw_request).to eq({ model: "gpt-test" })
     end
 
     it "normalizes nil tool_calls into an empty array" do

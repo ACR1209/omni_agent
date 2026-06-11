@@ -25,7 +25,7 @@ module OmniAgent
 
         response = client.chat.completions.create(**payload)
 
-        parse_response(response)
+        parse_response(response, payload)
       rescue => e
         raise OmniAgent::Error, "Error during OpenAI chat: #{e.message}"
       end
@@ -57,7 +57,7 @@ module OmniAgent
         }
       end
 
-      def parse_response(raw_response)
+      def parse_response(raw_response, raw_request)
         provider_raw_response = raw_response.respond_to?(:to_h) ? raw_response.to_h : raw_response
         choices = raw_response.respond_to?(:choices) ? raw_response.choices : provider_raw_response["choices"]
         first_choice = choices&.first || {}
@@ -80,6 +80,7 @@ module OmniAgent
         OmniAgent::Providers::Response.new(
           content: content,
           raw_response: provider_raw_response,
+          raw_request: raw_request,
           tool_calls: tool_calls
         )
       end
