@@ -139,7 +139,7 @@ RSpec.describe OmniAgent::Agent do
     result = agent.run("Hello")
 
     expect(result).to eq("ok")
-    expect(agent.events).to eq([:before, :after])
+    expect(agent.events).to eq([ :before, :after ])
   end
 
   it "passes run payload to generation callbacks" do
@@ -182,6 +182,54 @@ RSpec.describe OmniAgent::Agent do
     )
   end
 
+  it "exposes payload context as instance variables for zero-arity callbacks" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      before_generation :capture_from_ivars
+
+      attr_reader :captured_actor
+
+      def capture_from_ivars
+        @captured_actor = [ @actor_type, @actor_id ]
+      end
+    end
+
+    agent = agent_class.new
+    allow(agent).to receive(:available_tools).and_return([])
+
+    agent.run("Hello", context: { actor_type: "User", actor_id: 42 })
+
+    expect(agent.captured_actor).to eq([ "User", 42 ])
+  end
+
+  it "syncs context updates from instance variables back into payload" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      before_generation :mutate_context
+      after_generation :capture_context_after_sync
+
+      attr_reader :captured_context
+
+      def mutate_context(_payload)
+        @actor_id = @actor_id.to_i + 1
+        @actor_type = "Person"
+      end
+
+      def capture_context_after_sync(payload)
+        @captured_context = payload[:context].dup
+      end
+    end
+
+    agent = agent_class.new
+    allow(agent).to receive(:available_tools).and_return([])
+
+    agent.run("Hello", context: { actor_type: "User", actor_id: 41 })
+
+    expect(agent.captured_context).to eq(actor_type: "Person", actor_id: 42)
+  end
+
   it "requires at least one method name for before_generation" do
     expect do
       Class.new(described_class) do
@@ -211,7 +259,7 @@ RSpec.describe OmniAgent::Agent do
       tags :math, "person", :math
     end
 
-    expect(agent_class.tags).to eq([:math, :person])
+    expect(agent_class.tags).to eq([ :math, :person ])
   end
 
   it "returns current tags when called with no arguments" do
@@ -219,7 +267,7 @@ RSpec.describe OmniAgent::Agent do
       tags :math
     end
 
-    expect(agent_class.tags).to eq([:math])
+    expect(agent_class.tags).to eq([ :math ])
   end
 
   it "rejects non string and non symbol tag values" do
@@ -265,9 +313,9 @@ RSpec.describe OmniAgent::Agent do
 
     agent = agent_class.new
 
-    filtered = agent.send(:tool_filter, tools: [math_tool, people_tool], agent_tags: agent_class.tags)
+    filtered = agent.send(:tool_filter, tools: [ math_tool, people_tool ], agent_tags: agent_class.tags)
 
-    expect(filtered).to eq([math_tool])
+    expect(filtered).to eq([ math_tool ])
   end
 
   it "allows overriding tool_filter to select tools by metadata" do
@@ -289,9 +337,9 @@ RSpec.describe OmniAgent::Agent do
 
     agent = agent_class.new
 
-    filtered = agent.send(:tool_filter, tools: [research_tool, utility_tool], agent_tags: agent_class.tags)
+    filtered = agent.send(:tool_filter, tools: [ research_tool, utility_tool ], agent_tags: agent_class.tags)
 
-    expect(filtered).to eq([research_tool])
+    expect(filtered).to eq([ research_tool ])
   end
 
   it "allows overriding tool_filter to select tools using agent tags" do
@@ -315,9 +363,9 @@ RSpec.describe OmniAgent::Agent do
 
     agent = agent_class.new
 
-    filtered = agent.send(:tool_filter, tools: [math_tool, people_tool], agent_tags: agent_class.tags)
+    filtered = agent.send(:tool_filter, tools: [ math_tool, people_tool ], agent_tags: agent_class.tags)
 
-    expect(filtered).to eq([math_tool])
+    expect(filtered).to eq([ math_tool ])
   end
 
   it "uses tool_filter result for provider chat tools" do
@@ -335,7 +383,7 @@ RSpec.describe OmniAgent::Agent do
     agent = agent_class.new
     captured_tools = nil
 
-    allow(agent).to receive(:available_tools).and_return([alpha_tool, beta_tool])
+    allow(agent).to receive(:available_tools).and_return([ alpha_tool, beta_tool ])
     allow(agent.provider).to receive(:chat) do |messages:, tools: [], **_options|
       captured_tools = tools
       OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
@@ -343,7 +391,7 @@ RSpec.describe OmniAgent::Agent do
 
     agent.run("Hello")
 
-    expect(captured_tools).to eq([alpha_tool])
+    expect(captured_tools).to eq([ alpha_tool ])
   end
 
   it "supports class-level with helper to prefill context" do
@@ -496,6 +544,45 @@ RSpec.describe OmniAgent::Agent do
     end
   end
 
+  it "renders prompt templates with context values changed through instance variables" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    Dir.mktmpdir do |dir|
+      app_agents_dir = File.join(dir, "app", "agents", "support_agent")
+      FileUtils.mkdir_p(app_agents_dir)
+      File.write(File.join(app_agents_dir, "prompt.md.erb"), "Actor: <%= @actor_type %>#<%= @actor_id %>")
+
+      rails_class = Class.new do
+        define_singleton_method(:root) { Pathname.new(dir) }
+      end
+
+      stub_const("Rails", rails_class)
+
+      support_agent_class = Class.new(described_class) do
+        before_generation :prepare_context
+
+        def prepare_context
+          @actor_type = "Person"
+          @actor_id = @actor_id.to_i + 1
+        end
+      end
+      stub_const("SupportAgent", support_agent_class)
+
+      agent = SupportAgent.new
+      captured_system_prompt = nil
+
+      allow(agent).to receive(:available_tools).and_return([])
+      allow(agent.provider).to receive(:chat) do |messages:, tools: [], **_options|
+        captured_system_prompt = messages.first[:content]
+        OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
+      end
+
+      agent.run("Hello", context: { actor_type: "User", actor_id: 41 })
+
+      expect(captured_system_prompt).to eq("Actor: Person#42")
+    end
+  end
+
   it "allows alias entrypoint methods to return @message without explicit return" do
     OmniAgent.configure { |config| config.default_provider = :test_provider }
 
@@ -562,7 +649,7 @@ RSpec.describe OmniAgent::Agent do
     result = agent.run("Hello")
 
     expect(result).to eq("ok")
-    expect(agent.events).to eq([:before, :after])
+    expect(agent.events).to eq([ :before, :after ])
     expect(agent.respond_to?(:mark_before)).to be(false)
     expect { agent.mark_before("input") }.to raise_error(NoMethodError)
   end

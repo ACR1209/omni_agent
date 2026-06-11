@@ -147,6 +147,7 @@ module OmniAgent
 
     def run(input, context: {}, prompt_method: nil)
       context = @default_context.merge(context || {})
+      bind_context_instance_variables(context)
 
       messages = [
         { role: "system", content: nil },
@@ -154,6 +155,7 @@ module OmniAgent
       ]
 
       run_before_generation_callbacks(input: input, context: context, messages: messages)
+      sync_context_from_instance_variables(context)
       messages[0][:content] = system_prompt(context: context, prompt_method: prompt_method)
 
       filtered_tools = tool_filter(tools: available_tools, agent_tags: self.class.tags)
@@ -164,6 +166,7 @@ module OmniAgent
         if response.content && !response.tool_calls?
           messages << { role: "assistant", content: response.content }
           run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
+          sync_context_from_instance_variables(context)
           return response.content
         end
 
@@ -265,11 +268,40 @@ module OmniAgent
       end
 
       callback_method = self.class.instance_method(callback_target)
+      bind_context_instance_variables(payload[:context])
 
       if callback_method.arity == 0
         __send__(callback_target)
       else
         __send__(callback_target, payload)
+      end
+
+      sync_context_from_instance_variables(payload[:context])
+    end
+
+    def bind_context_instance_variables(context)
+      return unless context.is_a?(Hash)
+
+      @__omni_agent_context_bindings ||= {}
+
+      context.each do |key, value|
+        ivar_name = "@#{key}"
+        next unless ivar_name.match?(/\A@[a-zA-Z_]\w*\z/)
+
+        ivar = ivar_name.to_sym
+        instance_variable_set(ivar, value)
+        @__omni_agent_context_bindings[ivar] = key
+      end
+    end
+
+    def sync_context_from_instance_variables(context)
+      return unless context.is_a?(Hash)
+      return unless instance_variable_defined?(:@__omni_agent_context_bindings)
+
+      @__omni_agent_context_bindings.each do |ivar, key|
+        next unless instance_variable_defined?(ivar)
+
+        context[key] = instance_variable_get(ivar)
       end
     end
 
@@ -292,7 +324,7 @@ module OmniAgent
         isolated_scope.instance_variable_set("@#{key}", value)
       end
 
-      internal_vars = [:@provider, :@chat_options] # Blacklists internal instance variables
+      internal_vars = [ :@provider, :@chat_options ] # Blacklists internal instance variables
 
       (instance_variables - internal_vars).each do |ivar|
         isolated_scope.instance_variable_set(ivar, instance_variable_get(ivar))
@@ -301,7 +333,7 @@ module OmniAgent
       base_prompt = render_prompt_template(base_file_path, isolated_scope)
       method_prompt = render_prompt_template(method_file_path, isolated_scope)
 
-      prompts = [base_prompt, method_prompt].compact.reject(&:empty?)
+      prompts = [ base_prompt, method_prompt ].compact.reject(&:empty?)
       return prompts.join("\n\n") if prompts.any?
 
       "You are a helpful assistant with access to local tools."
