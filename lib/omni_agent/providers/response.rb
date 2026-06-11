@@ -12,6 +12,10 @@ module OmniAgent
       def tool_calls?
         @tool_calls.any?
       end
+
+      def answer
+        @content
+      end
     end
   end
 end

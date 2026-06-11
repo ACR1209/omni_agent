@@ -58,7 +58,8 @@ module OmniAgent
       end
 
       def parse_response(raw_response)
-        choices = raw_response.respond_to?(:choices) ? raw_response.choices : raw_response["choices"]
+        provider_raw_response = raw_response.respond_to?(:to_h) ? raw_response.to_h : raw_response
+        choices = raw_response.respond_to?(:choices) ? raw_response.choices : provider_raw_response["choices"]
         first_choice = choices&.first || {}
 
         message = first_choice.respond_to?(:message) ? first_choice.message : (first_choice["message"] || {})
@@ -76,32 +77,9 @@ module OmniAgent
           }
         end
 
-        compat_tool_calls = raw_tool_calls.map do |tc|
-          fn = tc.respond_to?(:function) ? tc.function : tc["function"]
-          {
-            "id" => tc.respond_to?(:id) ? tc.id : tc["id"],
-            "type" => "function",
-            "function" => {
-              "name" => fn.respond_to?(:name) ? fn.name : fn["name"],
-              "arguments" => fn.respond_to?(:arguments) ? fn.arguments : fn["arguments"]
-            }
-          }
-        end.compact
-
-        compat_raw_response = {
-          "choices" => [
-            {
-              "message" => {
-                "content" => content,
-                "tool_calls" => (compat_tool_calls.empty? ? nil : compat_tool_calls)
-              }.compact
-            }
-          ]
-        }
-
         OmniAgent::Providers::Response.new(
           content: content,
-          raw_response: compat_raw_response,
+          raw_response: provider_raw_response,
           tool_calls: tool_calls
         )
       end

@@ -19,7 +19,7 @@ RSpec.describe AliasAgent do
 
     response = configured_agent.summarize("Summarize this", topic: "billing")
 
-    expect(response).to eq("ok")
+    expect(response.answer).to eq("ok")
     expect(configured_agent.last_entrypoint).to eq(:summarize)
     expect(captured_messages.first[:role]).to eq("system")
     expect(captured_messages.first[:content]).to include("You are AliasAgent.")
@@ -40,7 +40,7 @@ RSpec.describe AliasAgent do
 
     response = configured_agent.classify("Classify this")
 
-    expect(response).to eq("ok")
+    expect(response.answer).to eq("ok")
     expect(configured_agent.last_entrypoint).to eq(:classify)
     expect(captured_messages.first[:content]).to include("You are AliasAgent.")
     expect(captured_messages.first[:content]).to include("Current user: Bob")

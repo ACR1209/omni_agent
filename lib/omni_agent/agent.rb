@@ -165,7 +165,7 @@ module OmniAgent
           messages << { role: "assistant", content: response.content }
           run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
           sync_context_from_instance_variables(context)
-          return response.content
+          return response
         end
 
         messages << {

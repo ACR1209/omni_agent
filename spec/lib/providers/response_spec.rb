@@ -6,12 +6,12 @@ RSpec.describe OmniAgent::Providers::Response do
     it "sets content, tool_calls, and raw_response" do
       response = described_class.new(
         content: "hi",
-        tool_calls: [{ name: "search" }],
+        tool_calls: [ { name: "search" } ],
         raw_response: { "id" => "123" }
       )
 
       expect(response.content).to eq("hi")
-      expect(response.tool_calls).to eq([{ name: "search" }])
+      expect(response.tool_calls).to eq([ { name: "search" } ])
       expect(response.raw_response).to eq({ "id" => "123" })
     end
 
@@ -30,9 +30,17 @@ RSpec.describe OmniAgent::Providers::Response do
     end
 
     it "returns true when tool calls are present" do
-      response = described_class.new(content: "hi", tool_calls: [{ name: "search" }])
+      response = described_class.new(content: "hi", tool_calls: [ { name: "search" } ])
 
       expect(response.tool_calls?).to be(true)
+    end
+  end
+
+  describe "#answer" do
+    it "returns the content" do
+      response = described_class.new(content: "hello")
+
+      expect(response.answer).to eq("hello")
     end
   end
 end

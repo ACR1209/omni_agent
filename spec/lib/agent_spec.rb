@@ -93,7 +93,9 @@ RSpec.describe OmniAgent::Agent do
     allow(agent).to receive(:available_tools).and_return([])
     result = agent.run("Hello")
 
-    expect(result).to eq("ok")
+    expect(result).to be_a(OmniAgent::Providers::Response)
+    expect(result.answer).to eq("ok")
+    expect(result.raw_response).to eq({})
     expect(agent.provider.last_chat_options).to eq(temperature: 0.2, top_p: 0.8)
   end
 
@@ -138,7 +140,7 @@ RSpec.describe OmniAgent::Agent do
 
     result = agent.run("Hello")
 
-    expect(result).to eq("ok")
+    expect(result.answer).to eq("ok")
     expect(agent.events).to eq([ :before, :after ])
   end
 
@@ -591,7 +593,7 @@ RSpec.describe OmniAgent::Agent do
 
       response = agent.test("Hello", user: "Alice")
 
-      expect(response).to eq("ok")
+      expect(response.answer).to eq("ok")
       expect(captured_system_prompt).to eq("Base prompt\n\nMethod prompt for Alice")
       expect(agent.test).to eq("no-arg behavior")
     end
@@ -667,7 +669,7 @@ RSpec.describe OmniAgent::Agent do
 
     result = agent.test("Hello")
 
-    expect(result).to eq("ok")
+    expect(result.answer).to eq("ok")
     expect(agent.before_run_logic_called).to eq(true)
   end
 
@@ -701,7 +703,7 @@ RSpec.describe OmniAgent::Agent do
 
     result = agent.run("Hello")
 
-    expect(result).to eq("ok")
+    expect(result.answer).to eq("ok")
     expect(agent.events).to eq([ :before, :after ])
     expect(agent.respond_to?(:mark_before)).to be(false)
     expect { agent.mark_before("input") }.to raise_error(NoMethodError)

@@ -19,7 +19,7 @@ RSpec.describe ResearchAgent do
   it "decides to call the weather tool when asked about Quito", :vcr do
     response = agent.run("What is the weather in Quito?")
 
-    expect(response).to include("16°C")
+    expect(response.answer).to include("16°C")
   end
 
   it "logs before and after generation callbacks", :vcr do

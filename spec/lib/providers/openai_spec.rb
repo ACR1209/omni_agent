@@ -62,6 +62,33 @@ RSpec.describe OmniAgent::Providers::OpenAI do
     }.to raise_error(OmniAgent::Error, /invalid message role/)
   end
 
+  it "preserves the full raw provider response" do
+    messages = [ { role: "user", content: "Hello" } ]
+    raw_response = {
+      "id" => "chatcmpl_123",
+      "object" => "chat.completion",
+      "usage" => { "prompt_tokens" => 10, "completion_tokens" => 4, "total_tokens" => 14 },
+      "choices" => [
+        { "message" => { "content" => "Hi there" } }
+      ]
+    }
+
+    completions = double("completions")
+    chat = double("chat", completions: completions)
+    client_instance = instance_double(OpenAI::Client, chat: chat)
+    allow(OpenAI::Client).to receive(:new)
+      .with(api_key: "token")
+      .and_return(client_instance)
+    expect(completions).to receive(:create)
+      .with(model: "gpt-test", messages: messages)
+      .and_return(raw_response)
+
+    result = described_class.new(api_key: "token", model: "gpt-test").chat(messages: messages)
+
+    expect(result.raw_response).to eq(raw_response)
+    expect(result.raw_response["usage"]).to eq({ "prompt_tokens" => 10, "completion_tokens" => 4, "total_tokens" => 14 })
+  end
+
   describe "integration tests" do
     before do
       stub_const("OpenAISpecAgent", Module.new)
