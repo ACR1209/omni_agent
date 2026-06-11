@@ -396,6 +396,57 @@ RSpec.describe OmniAgent::Agent do
     expect(captured_tools).to eq([ alpha_tool ])
   end
 
+  it "stops generation loop when a called tool sets stops_generation" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    stub_const("StopLoopTool", Class.new(OmniAgent::Tool) do
+      stops_generation
+
+      def execute(**_args)
+        "stop now"
+      end
+    end)
+
+    agent_class = Class.new(described_class)
+    agent = agent_class.new
+
+    response_with_tool_call = OmniAgent::Providers::Response.new(
+      content: nil,
+      raw_response: {
+        "choices" => [
+          {
+            "message" => {
+              "tool_calls" => [
+                {
+                  "id" => "call_1",
+                  "type" => "function",
+                  "function" => {
+                    "name" => "StopLoopTool",
+                    "arguments" => "{}"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      tool_calls: [
+        {
+          id: "call_1",
+          name: "StopLoopTool",
+          arguments: {}
+        }
+      ]
+    )
+
+    allow(agent).to receive(:available_tools).and_return([ StopLoopTool ])
+    expect(agent.provider).to receive(:chat).once.and_return(response_with_tool_call)
+
+    result = agent.run("Hello")
+
+    expect(result).to eq(response_with_tool_call)
+  end
+
   it "supports class-level with helper to prefill context" do
     OmniAgent.configure { |config| config.default_provider = :test_provider }
 

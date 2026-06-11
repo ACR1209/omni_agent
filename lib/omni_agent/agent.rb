@@ -179,7 +179,11 @@ module OmniAgent
           tool_args = tool_call[:arguments]
           tool_id   = tool_call[:id]
 
-          tool_class = filtered_tools.find { |t| t.name.demodulize == tool_name }
+          tool_class = filtered_tools.find do |t|
+            class_name = t.name.to_s
+            simple_name = class_name.respond_to?(:demodulize) ? class_name.demodulize : class_name.split("::").last
+            simple_name == tool_name
+          end
 
           if tool_class
             begin
@@ -198,6 +202,12 @@ module OmniAgent
                 name: tool_name,
                 content: "Error executing tool: #{e.message}"
               }
+            end
+
+            if tool_class.respond_to?(:stops_generation?) && tool_class.stops_generation?
+              run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
+              sync_context_from_instance_variables(context)
+              return response
             end
           else
             messages << {

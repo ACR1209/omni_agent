@@ -46,6 +46,14 @@ module OmniAgent
         new.execute(**kwargs)
       end
 
+      def stops_generation(value = true)
+        @stops_generation = !!value
+      end
+
+      def stops_generation?
+        @stops_generation == true
+      end
+
       private
 
       def normalize_tags(tag_names)

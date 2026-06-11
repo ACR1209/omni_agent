@@ -127,6 +127,31 @@ RSpec.describe OmniAgent::Tool do
     end
   end
 
+  describe ".stops_generation" do
+    it "defaults to false" do
+      klass = Class.new(described_class)
+
+      expect(klass.stops_generation?).to be(false)
+    end
+
+    it "can be enabled via DSL" do
+      klass = Class.new(described_class) do
+        stops_generation
+      end
+
+      expect(klass.stops_generation?).to be(true)
+    end
+
+    it "can be explicitly disabled" do
+      klass = Class.new(described_class) do
+        stops_generation
+        stops_generation false
+      end
+
+      expect(klass.stops_generation?).to be(false)
+    end
+  end
+
   describe "#execute" do
     it "raises NotImplementedError in the base class" do
       expect { described_class.new.execute }.to raise_error(
