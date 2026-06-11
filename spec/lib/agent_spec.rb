@@ -436,6 +436,59 @@ RSpec.describe OmniAgent::Agent do
     expect(agent.captured_context).to eq(user: "Alice", locale: "es", request_id: "123")
   end
 
+  it "includes context history before the current user input" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class)
+    agent = agent_class.with(
+      history: [
+        { role: "user", content: "Earlier question" },
+        { role: "assistant", content: "Earlier answer" }
+      ]
+    )
+
+    captured_messages = nil
+    allow(agent).to receive(:available_tools).and_return([])
+    allow(agent.provider).to receive(:chat) do |messages:, tools: [], **_options|
+      captured_messages = messages
+      OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
+    end
+
+    agent.run("Hello now")
+
+    expect(captured_messages.map { |m| m[:role] }.first(4)).to eq([ "system", "user", "assistant", "user" ])
+    expect(captured_messages[1][:content]).to eq("Earlier question")
+    expect(captured_messages[2][:content]).to eq("Earlier answer")
+    expect(captured_messages[3][:content]).to eq("Hello now")
+  end
+
+  it "allows mutating history via instance variables in callbacks" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      before_generation :extend_history
+
+      def extend_history
+        @history ||= []
+        @history << { role: "assistant", content: "Injected from callback" }
+      end
+    end
+
+    agent = agent_class.with(history: [ { role: "user", content: "Older message" } ])
+
+    captured_messages = nil
+    allow(agent).to receive(:available_tools).and_return([])
+    allow(agent.provider).to receive(:chat) do |messages:, tools: [], **_options|
+      captured_messages = messages
+      OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
+    end
+
+    agent.run("Hello now")
+
+    expect(captured_messages.map { |m| m[:content] }).to include("Injected from callback")
+    expect(captured_messages[-2]).to eq(role: "user", content: "Hello now")
+  end
+
   it "uses base prompt when method prompt file is missing" do
     OmniAgent.configure { |config| config.default_provider = :test_provider }
 

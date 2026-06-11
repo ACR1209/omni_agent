@@ -4,6 +4,8 @@ module OmniAgent
       LOREM_IPSUM = "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
 
       def chat(messages:, tools: [], **_options)
+        validate_messages!(messages, allowed_roles: %i[system user assistant tool])
+
         OmniAgent::Providers::Response.new(
           content: LOREM_IPSUM,
           raw_response: {

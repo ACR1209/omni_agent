@@ -8,7 +8,7 @@ require_relative "../../../lib/omni_agent/tool"
 
 RSpec.describe OmniAgent::Providers::OpenAI do
   it "sends the expected payload to the client and parses the response" do
-    messages = [{ role: "user", content: "Hello" }]
+    messages = [ { role: "user", content: "Hello" } ]
     raw_response = {
       "choices" => [
         { "message" => { "content" => "Hi there" } }
@@ -39,7 +39,7 @@ RSpec.describe OmniAgent::Providers::OpenAI do
   end
 
   it "forwards extra model options like temperature into the payload" do
-    messages = [{ role: "user", content: "Hello" }]
+    messages = [ { role: "user", content: "Hello" } ]
 
     completions = double("completions")
     chat = double("chat", completions: completions)
@@ -49,9 +49,17 @@ RSpec.describe OmniAgent::Providers::OpenAI do
       .and_return(client_instance)
     expect(completions).to receive(:create)
       .with(model: "gpt-test", messages: messages, temperature: 0.3)
-      .and_return({ "choices" => [{ "message" => { "content" => "Hi" } }] })
+      .and_return({ "choices" => [ { "message" => { "content" => "Hi" } } ] })
 
     described_class.new(api_key: "token", model: "gpt-test").chat(messages: messages, temperature: 0.3)
+  end
+
+  it "raises when messages contain invalid roles" do
+    provider = described_class.new(api_key: "token", model: "gpt-test")
+
+    expect {
+      provider.chat(messages: [ { role: "invalid", content: "Hello" } ])
+    }.to raise_error(OmniAgent::Error, /invalid message role/)
   end
 
   describe "integration tests" do
@@ -77,7 +85,7 @@ RSpec.describe OmniAgent::Providers::OpenAI do
       end
 
       stub_const("OpenAISpecAgent::Tools::WebSearch", web_search_class)
-    end    
+    end
 
     it "formats tools correctly in the payload" do
       provider = described_class.new(api_key: "token", model: "gpt-test")
@@ -88,7 +96,7 @@ RSpec.describe OmniAgent::Providers::OpenAI do
       expect(provider).to receive(:format_tool).with(OpenAISpecAgent::Tools::WebSearch).and_call_original
       expect(completions).to receive(:create).with(
         model: "gpt-test",
-        messages: [{ role: "user", content: "Search the web" }],
+        messages: [ { role: "user", content: "Search the web" } ],
         tools: [
           {
             type: "function",
@@ -102,7 +110,7 @@ RSpec.describe OmniAgent::Providers::OpenAI do
                   limit: { type: "integer", description: "Maximum number of results to return" },
                   safe_search: { type: "boolean", description: "Whether to filter explicit content" }
                 },
-                required: ["query"],
+                required: [ "query" ],
                 additionalProperties: false
               }
             }
@@ -110,7 +118,7 @@ RSpec.describe OmniAgent::Providers::OpenAI do
         ]
       ).and_return({})
 
-      provider.chat(messages: [{ role: "user", content: "Search the web" }], tools: [OpenAISpecAgent::Tools::WebSearch])
+      provider.chat(messages: [ { role: "user", content: "Search the web" } ], tools: [ OpenAISpecAgent::Tools::WebSearch ])
     end
   end
 end

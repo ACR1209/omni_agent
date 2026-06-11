@@ -149,13 +149,11 @@ module OmniAgent
       context = @default_context.merge(context || {})
       bind_context_instance_variables(context)
 
-      messages = [
-        { role: "system", content: nil },
-        { role: "user", content: input }
-      ]
+      messages = build_messages(input: input, history: context[:history])
 
       run_before_generation_callbacks(input: input, context: context, messages: messages)
       sync_context_from_instance_variables(context)
+      messages.replace(build_messages(input: input, history: context[:history]))
       messages[0][:content] = system_prompt(context: context, prompt_method: prompt_method)
 
       filtered_tools = tool_filter(tools: available_tools, agent_tags: self.class.tags)
@@ -227,6 +225,28 @@ module OmniAgent
 
     def tool_filter(tools:, agent_tags:)
       tools
+    end
+
+    def build_messages(input:, history:)
+      normalized_history = normalize_history_messages(history)
+
+      [
+        { role: "system", content: nil },
+        *normalized_history,
+        { role: "user", content: input }
+      ]
+    end
+
+    def normalize_history_messages(history)
+      return [] if history.nil?
+      return [] unless history.is_a?(Array)
+
+      history.filter_map do |message|
+        next unless message.is_a?(Hash)
+
+        normalized = message.transform_keys(&:to_sym)
+        normalized.compact
+      end
     end
 
     def run_alias_entrypoint_logic(alias_name, fallback_input: nil)

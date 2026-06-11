@@ -27,6 +27,14 @@ RSpec.describe OmniAgent::Providers::Mock do
 
       expect(response.content).to eq("Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
     end
+
+    it "raises when history messages are invalid" do
+      provider = described_class.new
+
+      expect {
+        provider.chat(messages: [ { role: "invalid", content: "Hello" } ])
+      }.to raise_error(OmniAgent::Error, /invalid message role/)
+    end
   end
 
   describe "configuration" do
