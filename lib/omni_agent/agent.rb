@@ -169,6 +169,7 @@ module OmniAgent
         end
 
         messages << build_assistant_tool_call_message(response)
+        should_stop_generation = false
 
         response.tool_calls.each do |tool_call|
           tool_name = tool_call[:name]
@@ -200,11 +201,7 @@ module OmniAgent
               }
             end
 
-            if tool_class.respond_to?(:stops_generation?) && tool_class.stops_generation?
-              run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
-              sync_context_from_instance_variables(context)
-              return response
-            end
+            should_stop_generation ||= tool_class.respond_to?(:stops_generation?) && tool_class.stops_generation?
           else
             messages << {
               role: "tool",
@@ -213,6 +210,12 @@ module OmniAgent
               content: "Error: Tool #{tool_name} is not registered to this agent."
             }
           end
+        end
+
+        if should_stop_generation
+          run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
+          sync_context_from_instance_variables(context)
+          return response
         end
       end
     end

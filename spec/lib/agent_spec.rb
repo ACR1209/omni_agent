@@ -396,13 +396,23 @@ RSpec.describe OmniAgent::Agent do
     expect(captured_tools).to eq([ alpha_tool ])
   end
 
-  it "stops generation loop when a called tool sets stops_generation" do
+  it "stops generation loop after processing all tool calls when any called tool sets stops_generation" do
     OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    executed_tools = []
+
+    stub_const("RegularTool", Class.new(OmniAgent::Tool) do
+      define_method(:execute) do |**_args|
+        executed_tools << :regular
+        "regular done"
+      end
+    end)
 
     stub_const("StopLoopTool", Class.new(OmniAgent::Tool) do
       stops_generation
 
-      def execute(**_args)
+      define_method(:execute) do |**_args|
+        executed_tools << :stop
         "stop now"
       end
     end)
@@ -418,6 +428,14 @@ RSpec.describe OmniAgent::Agent do
             "message" => {
               "tool_calls" => [
                 {
+                  "id" => "call_0",
+                  "type" => "function",
+                  "function" => {
+                    "name" => "RegularTool",
+                    "arguments" => "{}"
+                  }
+                },
+                {
                   "id" => "call_1",
                   "type" => "function",
                   "function" => {
@@ -432,6 +450,11 @@ RSpec.describe OmniAgent::Agent do
       },
       tool_calls: [
         {
+          id: "call_0",
+          name: "RegularTool",
+          arguments: {}
+        },
+        {
           id: "call_1",
           name: "StopLoopTool",
           arguments: {}
@@ -439,12 +462,13 @@ RSpec.describe OmniAgent::Agent do
       ]
     )
 
-    allow(agent).to receive(:available_tools).and_return([ StopLoopTool ])
+    allow(agent).to receive(:available_tools).and_return([ RegularTool, StopLoopTool ])
     expect(agent.provider).to receive(:chat).once.and_return(response_with_tool_call)
 
     result = agent.run("Hello")
 
     expect(result).to eq(response_with_tool_call)
+    expect(executed_tools).to eq([ :regular, :stop ])
   end
 
   it "does not send assistant content as nil when continuing after tool calls" do
