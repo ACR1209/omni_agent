@@ -184,6 +184,35 @@ RSpec.describe OmniAgent::Agent do
     )
   end
 
+  it "exposes response.generated_messages in after_generation callbacks" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+    agent_class = Class.new(described_class) do
+      after_generation :capture_after_from_ivars
+
+      attr_reader :captured_after
+
+      def capture_after_from_ivars
+        @captured_after = {
+          response_content: @response&.content,
+          generated_messages_count: @response&.generated_messages&.size,
+          last_generated_role: @response&.generated_messages&.last&.dig(:role)
+        }
+      end
+    end
+
+    agent = agent_class.new
+    allow(agent).to receive(:available_tools).and_return([])
+
+    agent.run("Hello")
+
+    expect(agent.captured_after).to eq(
+      response_content: "ok",
+      generated_messages_count: 1,
+      last_generated_role: "assistant"
+    )
+  end
+
   it "exposes payload context as instance variables for zero-arity callbacks" do
     OmniAgent.configure { |config| config.default_provider = :test_provider }
 
@@ -513,6 +542,9 @@ RSpec.describe OmniAgent::Agent do
     expect(assistant_message[:tool_calls]).to be_a(Array)
     expect(assistant_message[:tool_calls].first.dig("function", "name")).to eq("ContinueTool")
     expect(result).to eq(final_response)
+    expect(result.generated_messages.map { |m| m[:role] }).to eq([ "assistant", "tool", "assistant" ])
+    expect(result.generated_messages[0][:tool_calls].first.dig("function", "name")).to eq("ContinueTool")
+    expect(result.generated_messages[1]).to eq(role: "tool", tool_call_id: "call_1", name: "ContinueTool", content: "tool result")
   end
 
   it "supports class-level with helper to prefill context" do

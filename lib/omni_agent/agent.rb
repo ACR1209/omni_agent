@@ -155,6 +155,7 @@ module OmniAgent
       sync_context_from_instance_variables(context)
       messages.replace(build_messages(input: input, history: context[:history]))
       messages[0][:content] = system_prompt(context: context, prompt_method: prompt_method)
+      initial_messages_count = messages.length
 
       filtered_tools = tool_filter(tools: available_tools, agent_tags: self.class.tags)
 
@@ -163,6 +164,7 @@ module OmniAgent
 
         if response.content && !response.tool_calls?
           messages << { role: "assistant", content: response.content }
+          set_after_generation_state(response: response, messages: messages, initial_messages_count: initial_messages_count)
           run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
           sync_context_from_instance_variables(context)
           return response
@@ -213,6 +215,7 @@ module OmniAgent
         end
 
         if should_stop_generation
+          set_after_generation_state(response: response, messages: messages, initial_messages_count: initial_messages_count)
           run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
           sync_context_from_instance_variables(context)
           return response
@@ -314,11 +317,22 @@ module OmniAgent
     end
 
     def run_after_generation_callbacks(input:, context:, messages:, response:)
-      payload = { input: input, context: context, messages: messages, response: response }
+      payload = {
+        input: input,
+        context: context,
+        messages: messages,
+        generated_messages: response.generated_messages,
+        response: response
+      }
 
       self.class.configured_after_generation_callbacks.each do |callback_name|
         invoke_generation_callback(callback_name, payload)
       end
+    end
+
+    def set_after_generation_state(response:, messages:, initial_messages_count:)
+      generated_messages = messages.drop(initial_messages_count)
+      @response = response.with_generated_messages(generated_messages)
     end
 
     def invoke_generation_callback(callback_name, payload)

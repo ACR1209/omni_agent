@@ -14,6 +14,27 @@ module OmniAgent
 
       def chat(messages:, tools: [], **options)
         validate_messages!(messages, allowed_roles: %i[system user assistant tool])
+
+        messages = messages.map do |msg|
+          clean_msg = msg.reject { |_, v| v.nil? }
+
+          if !clean_msg.key?(:tool_calls) && !clean_msg[:content].is_a?(String)
+            clean_msg[:content] = ""
+          end
+
+          if clean_msg[:tool_calls].is_a?(Array)
+            clean_msg[:tool_calls].each do |tc|
+              if tc.dig("function", "arguments").is_a?(Hash) || tc.dig(:function, :arguments).is_a?(Hash)
+                func = tc["function"] || tc[:function]
+                args_key = func.key?("arguments") ? "arguments" : :arguments
+                func[args_key] = func[args_key].to_json
+              end
+            end
+          end
+
+          clean_msg
+        end
+
         openai_tools = tools.map { |tool| format_tool(tool) }
 
         payload = {
