@@ -20,7 +20,7 @@ RSpec.describe OmniAgent::Tool::SchemaBuilder do
       expect(builder.properties).to eq(
         title: { type: "string", description: "The title" }
       )
-      expect(builder.required_fields).to eq(["title"])
+      expect(builder.required_fields).to eq([ "title" ])
     end
 
     it "adds integer and boolean fields, and skips required when false" do
@@ -33,7 +33,7 @@ RSpec.describe OmniAgent::Tool::SchemaBuilder do
         count: { type: "integer" },
         published: { type: "boolean", description: "Whether it is published" }
       )
-      expect(builder.required_fields).to eq(["published"])
+      expect(builder.required_fields).to eq([ "published" ])
     end
   end
 
@@ -50,7 +50,7 @@ RSpec.describe OmniAgent::Tool::SchemaBuilder do
           description: "Tag names"
         }
       )
-      expect(builder.required_fields).to eq(["tags"])
+      expect(builder.required_fields).to eq([ "tags" ])
     end
 
     it "does not add field name to required_fields when required is false" do
@@ -59,6 +59,32 @@ RSpec.describe OmniAgent::Tool::SchemaBuilder do
       builder.array(:values, items_type: "integer", required: false)
 
       expect(builder.required_fields).to eq([])
+    end
+
+    it "allows defining nested object schema for array items" do
+      builder = described_class.new
+
+      builder.array(:users) do
+        string :name
+        integer :age, required: false
+      end
+
+      expect(builder.properties).to eq(
+        users: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              age: { type: "integer" }
+            },
+            required: [ "name" ],
+            additionalProperties: false
+          }
+        }
+      )
+
+      expect(builder.required_fields).to eq([ "users" ])
     end
   end
 
@@ -75,7 +101,7 @@ RSpec.describe OmniAgent::Tool::SchemaBuilder do
           additionalProperties: true
         }
       )
-      expect(builder.required_fields).to eq(["filters"])
+      expect(builder.required_fields).to eq([ "filters" ])
     end
 
     it "adds a nested object schema when a block is given" do
@@ -93,11 +119,11 @@ RSpec.describe OmniAgent::Tool::SchemaBuilder do
             name: { type: "string" },
             age: { type: "integer" }
           },
-          required: ["name"],
+          required: [ "name" ],
           additionalProperties: false
         }
       )
-      expect(builder.required_fields).to eq(["user"])
+      expect(builder.required_fields).to eq([ "user" ])
     end
 
     it "respects required false for the top-level object field" do
@@ -108,7 +134,7 @@ RSpec.describe OmniAgent::Tool::SchemaBuilder do
       end
 
       expect(builder.required_fields).to eq([])
-      expect(builder.properties[:settings][:required]).to eq(["enabled"])
+      expect(builder.properties[:settings][:required]).to eq([ "enabled" ])
     end
   end
 end

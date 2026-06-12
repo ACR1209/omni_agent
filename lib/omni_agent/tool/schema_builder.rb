@@ -20,10 +20,24 @@ module OmniAgent
         add_property(name, type: "boolean", description: description, required: required)
       end
 
-      def array(name, items_type:, description: nil, required: true)
-        property = { type: "array", items: { type: items_type } }
+      def array(name, items_type: nil, description: nil, required: true, &block)
+        property = { type: "array" }
         property[:description] = description if description
-        
+
+        if block_given?
+          nested_builder = SchemaBuilder.new
+          nested_builder.instance_eval(&block)
+
+          property[:items] = {
+            type: "object",
+            properties: nested_builder.properties,
+            required: nested_builder.required_fields,
+            additionalProperties: false
+          }
+        else
+          property[:items] = { type: items_type || "string" }
+        end
+
         @properties[name] = property
         @required_fields << name.to_s if required
       end
@@ -35,7 +49,7 @@ module OmniAgent
         if block_given?
           nested_builder = SchemaBuilder.new
           nested_builder.instance_eval(&block)
-          
+
           property[:properties] = nested_builder.properties
           property[:required] = nested_builder.required_fields
           property[:additionalProperties] = false
@@ -52,7 +66,7 @@ module OmniAgent
       def add_property(name, type:, description:, required:)
         property = { type: type }
         property[:description] = description if description
-        
+
         @properties[name] = property
         @required_fields << name.to_s if required
       end
