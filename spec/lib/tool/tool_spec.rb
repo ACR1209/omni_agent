@@ -110,6 +110,11 @@ RSpec.describe OmniAgent::Tool do
   describe ".invoke" do
     it "passes symbolized keyword arguments to #execute" do
       klass = Class.new(described_class) do
+        input do
+          integer :limit
+          string :term
+        end
+
         attr_reader :received
 
         def execute(**args)
@@ -124,6 +129,28 @@ RSpec.describe OmniAgent::Tool do
 
       expect(result).to eq(term: "ruby", limit: 3)
       expect(tool_instance.received).to eq(term: "ruby", limit: 3)
+    end
+
+    it "filters out keys that are not defined in the schema" do
+      klass = Class.new(described_class) do
+        input do
+          string :query
+        end
+
+        attr_reader :received
+
+        def execute(**args)
+          @received = args
+        end
+      end
+
+      tool_instance = klass.new
+      allow(klass).to receive(:new).and_return(tool_instance)
+
+      result = klass.invoke("query" => "ruby", "unexpected" => 123)
+
+      expect(result).to eq(query: "ruby")
+      expect(tool_instance.received).to eq(query: "ruby")
     end
   end
 

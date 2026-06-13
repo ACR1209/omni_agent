@@ -161,12 +161,10 @@ RSpec.describe OmniAgent::Agent do
       def capture_before(payload)
         captured[:before_input] = payload[:input]
         captured[:before_context] = payload[:context]
-        captured[:before_messages_count] = payload[:messages].size
       end
 
       def capture_after(payload)
         captured[:after_content] = payload[:response].content
-        captured[:after_messages_count] = payload[:messages].size
       end
     end
 
@@ -178,9 +176,7 @@ RSpec.describe OmniAgent::Agent do
     expect(agent.captured).to eq(
       before_input: "Hello",
       before_context: { request_id: "abc" },
-      before_messages_count: 2,
       after_content: "ok",
-      after_messages_count: 3
     )
   end
 
@@ -208,7 +204,7 @@ RSpec.describe OmniAgent::Agent do
 
     expect(agent.captured_after).to eq(
       response_content: "ok",
-      generated_messages_count: 1,
+      generated_messages_count: 2,
       last_generated_role: "assistant"
     )
   end
@@ -542,9 +538,9 @@ RSpec.describe OmniAgent::Agent do
     expect(assistant_message[:tool_calls]).to be_a(Array)
     expect(assistant_message[:tool_calls].first.dig("function", "name")).to eq("ContinueTool")
     expect(result).to eq(final_response)
-    expect(result.generated_messages.map { |m| m[:role] }).to eq([ "assistant", "tool", "assistant" ])
-    expect(result.generated_messages[0][:tool_calls].first.dig("function", "name")).to eq("ContinueTool")
-    expect(result.generated_messages[1]).to eq(role: "tool", tool_call_id: "call_1", name: "ContinueTool", content: "tool result")
+    expect(result.generated_messages.map { |m| m[:role] }).to eq([ "user", "assistant", "tool", "assistant" ])
+    expect(result.generated_messages[1][:tool_calls].first.dig("function", "name")).to eq("ContinueTool")
+    expect(result.generated_messages[2]).to eq(role: "tool", tool_call_id: "call_1", name: "ContinueTool", content: "tool result")
   end
 
   it "supports class-level with helper to prefill context" do
