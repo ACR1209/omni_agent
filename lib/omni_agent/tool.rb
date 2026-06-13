@@ -1,4 +1,3 @@
-# lib/omni_agents/tool.rb
 module OmniAgent
   class Tool
     class << self
@@ -43,7 +42,12 @@ module OmniAgent
 
       def invoke(arguments_hash)
         kwargs = arguments_hash.transform_keys(&:to_sym)
-        new.execute(**kwargs)
+
+        valid_keys = (@properties || {}).keys.map(&:to_sym)
+
+        filtered_kwargs = kwargs.slice(*valid_keys)
+
+        new.execute(**filtered_kwargs)
       end
 
       def stops_generation(value = true)
@@ -67,6 +71,14 @@ module OmniAgent
           tag_name.to_sym
         end
       end
+    end
+
+    def stop_generation!
+      @stops_generation_instance = true
+    end
+
+    def stops_generation?
+      @stops_generation_instance == true
     end
 
     def execute(**args)

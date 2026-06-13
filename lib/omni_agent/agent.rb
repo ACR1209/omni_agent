@@ -149,13 +149,14 @@ module OmniAgent
       context = @default_context.merge(context || {})
       bind_context_instance_variables(context)
 
-      messages = build_messages(input: input, history: context[:history])
+      messages = []
 
       run_before_generation_callbacks(input: input, context: context, messages: messages)
       sync_context_from_instance_variables(context)
+
       messages.replace(build_messages(input: input, history: context[:history]))
       messages[0][:content] = system_prompt(context: context, prompt_method: prompt_method)
-      initial_messages_count = messages.length
+      initial_messages_count = messages.length - 1
 
       filtered_tools = tool_filter(tools: available_tools, agent_tags: self.class.tags)
 
@@ -185,6 +186,8 @@ module OmniAgent
           end
 
           if tool_class
+            tool_instance = tool_class.new
+
             begin
               result = tool_class.invoke(tool_args)
 
@@ -204,6 +207,7 @@ module OmniAgent
             end
 
             should_stop_generation ||= tool_class.respond_to?(:stops_generation?) && tool_class.stops_generation?
+            should_stop_generation ||= tool_instance.respond_to?(:stops_generation?) && tool_instance.stops_generation?
           else
             messages << {
               role: "tool",
@@ -372,12 +376,16 @@ module OmniAgent
 
     def sync_context_from_instance_variables(context)
       return unless context.is_a?(Hash)
-      return unless instance_variable_defined?(:@__omni_agent_context_bindings)
 
-      @__omni_agent_context_bindings.each do |ivar, key|
-        next unless instance_variable_defined?(ivar)
+      if instance_variable_defined?(:@__omni_agent_context_bindings)
+        @__omni_agent_context_bindings.each do |ivar, key|
+          next unless instance_variable_defined?(ivar)
+          context[key] = instance_variable_get(ivar)
+        end
+      end
 
-        context[key] = instance_variable_get(ivar)
+      if instance_variable_defined?(:@history)
+        context[:history] = @history
       end
     end
 

@@ -68,12 +68,16 @@ module OmniAgent
       private
 
       def format_tool(tool_class)
+        schema = tool_class.json_schema.dup
+
+        schema[:additionalProperties] = false
+
         {
           type: "function",
           function: {
             name: tool_class.name.split("::").last,
             description: tool_class.description,
-            parameters: tool_class.json_schema
+            parameters: schema
           }
         }
       end
