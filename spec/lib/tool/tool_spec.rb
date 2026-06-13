@@ -187,4 +187,34 @@ RSpec.describe OmniAgent::Tool do
       )
     end
   end
+
+  describe "#stops_generation?" do
+    it "returns true if stop_generation! has been called" do
+      tool_instance = described_class.new
+
+      expect(tool_instance.stops_generation?).to be(false)
+
+      tool_instance.stop_generation!
+
+      expect(tool_instance.stops_generation?).to be(true)
+    end
+
+    it "does not affect the class-level stops_generation?" do
+      klass = Class.new(described_class)
+
+      expect(klass.stops_generation?).to be(false)
+
+      instance = klass.new
+      instance.stop_generation!
+
+      expect(instance.stops_generation?).to be(true)
+      expect(klass.stops_generation?).to be(false)
+    end
+
+    it "returns false if stop_generation! has not been called" do
+      tool_instance = described_class.new
+
+      expect(tool_instance.stops_generation?).to be(false)
+    end
+  end
 end
