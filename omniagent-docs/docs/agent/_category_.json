@@ -1,0 +1,9 @@
+{
+  "label": "Agents",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Learn about agent specific features and functionalities."
+  },
+  "collapsed": false
+}

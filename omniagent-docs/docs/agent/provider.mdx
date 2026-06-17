@@ -1,0 +1,63 @@
+---
+sidebar_position: 3
+---
+
+
+# Change an Agent's Provider or Model
+
+By default, agents use the configured `default_provider` and `default_model`. You can override these settings on a per-agent basis using one of the following DSL directives.
+
+## Change Provider and Model
+
+Use `provider` when you want to change the provider and optionally specify a model.
+
+```ruby
+provider :openai, model: 'gpt-5.4'
+```
+
+You can also change only the provider and let it use that provider's default model:
+
+```ruby
+provider :openai
+```
+
+## Change Only the Model
+
+Use `use_model` when you want to keep the current `default_provider` and only override the model.
+
+```ruby
+use_model 'gpt-5.4'
+```
+
+## Important
+
+`provider` and `use_model` are mutually exclusive within the same agent definition. You must choose **one** of the following approaches:
+
+* Change the provider (and optionally the model) with `provider`
+* Keep the default provider and change only the model with `use_model`
+
+### Valid:
+
+```ruby
+provider :openai, model: 'gpt-5.4'
+```
+
+```ruby
+provider :anthropic
+```
+
+```ruby
+use_model 'gpt-5.4'
+```
+
+### Invalid:
+
+```ruby
+provider :openai, model: 'gpt-5.4'
+use_model 'gpt-5.5'
+```
+
+The example above is not allowed because both directives are defined in the same agent.
+
+> **Note:** An agent can either override its provider using `provider` or override its model using `use_model`, but it cannot use both directives simultaneously.
+

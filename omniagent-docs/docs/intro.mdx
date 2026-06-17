@@ -4,44 +4,84 @@ sidebar_position: 1
 
 # Introduction
 
-Let's discover **Docusaurus in less than 5 minutes**.
+**Omni Agent** is a gem focused on generating agentic code the Rails way. 
+
+It is designed to be highly opinionated, fully embracing the "convention over configuration" philosophy. 
+
+Let's get your first AI agent up and running **in less than 5 minutes**.
 
 ## Getting Started
 
-Get started by **creating a new site**.
+### 1. Install the Gem
+First, add Omni Agent to your Rails application. You can add it directly to your `Gemfile`:
 
-Or **try Docusaurus immediately** with **[docusaurus.new](https://docusaurus.new)**.
-
-### What you'll need
-
-- [Node.js](https://nodejs.org/en/download/) version 20.0 or above:
-  - When installing Node.js, you are recommended to check all checkboxes related to dependencies.
-
-## Generate a new site
-
-Generate a new Docusaurus site using the **classic template**.
-
-The classic template will automatically be added to your project after you run the command:
-
-```bash
-npm init docusaurus@latest my-website classic
+```ruby
+gem 'omni_agent'
 ```
 
-You can type this command into Command Prompt, Powershell, Terminal, or any other integrated terminal of your code editor.
-
-The command also installs all necessary dependencies you need to run Docusaurus.
-
-## Start your site
-
-Run the development server:
+Or, run the following command in your terminal:
 
 ```bash
-cd my-website
-npm run start
+bundle add omni_agent
 ```
 
-The `cd` command changes the directory you're working with. In order to work with your newly created Docusaurus site, you'll need to navigate the terminal there.
+### 2. Install an AI Provider
 
-The `npm run start` command builds your website locally and serves it through a development server, ready for you to view at http://localhost:3000/.
+Omni Agent is provider-agnostic, meaning you need to install the specific gem for the AI provider you plan to use. You can find a full list of supported providers [here](/docs/supported-providers).
 
-Open `docs/intro.md` (this page) and edit some lines: the site **reloads automatically** and displays your changes.
+For example, to use OpenAI:
+
+```bash
+bundle add openai
+```
+
+### 3. Run the Install Generator
+
+Prepare your project by running the Omni Agent installation generator:
+
+```bash
+rails generate omni_agent:install
+```
+
+This will set up the necessary foundation for your agents, starting by creating the core `app/agents` directory.
+
+> **Note:** As of version `0.1.4`, this command is lightweight. It lays the groundwork for more advanced configurations and planned features in future releases.
+
+## Create Your First Agent
+
+With the setup complete, you can use the built-in generator to scaffold your first agent.
+
+Run the following command to create a `DemoAgent`, specify the model, and attach a couple of tools:
+
+```bash
+rails generate omni_agent:agent DemoAgent --model gpt-4o-mini --with-tools DemoTool SecondDemoTool
+```
+
+This will generate the following directory structure inside `app/agents/`:
+
+```text
+app/agents/
+├── demo_agent.rb
+└── demo_agent/
+    ├── prompt.md.erb
+    └── tools/
+        ├── demo_tool.rb
+        └── second_demo_tool.rb
+
+```
+
+**What are these files?**
+
+* **`demo_agent.rb`**: The main configuration file dictating how your agent behaves.
+* **`prompt.md.erb`**: The core system prompt injected into your agent. It uses ERB, allowing for dynamic Ruby interpolation.
+* **`tools/`**: The directory housing the custom tools (`DemoTool`, `SecondDemoTool`) at your agent's disposal.
+
+## Calling the Agent
+
+After running the generator, your agent is ready to go out of the box. You can quickly test it in your Rails console (`rails c`) or anywhere in your app:
+
+```ruby
+DemoAgent.new.run("Hello!")
+```
+
+Congratulations - you are successfully using Omni Agent!
