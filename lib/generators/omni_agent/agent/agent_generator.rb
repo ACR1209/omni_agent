@@ -46,7 +46,7 @@ module OmniAgent
       end
 
       def agent_file_path
-        File.join(agent_directory, "#{file_name}.rb")
+        File.join(destination_root, "#{file_name}.rb")
       end
 
       def prompt_file_path
@@ -89,7 +89,7 @@ module OmniAgent
 
       def requested_tool_names
         names = Array(options[:with_tools]).map(&:to_s).map(&:strip).reject(&:empty?)
-        names.empty? ? ["ExampleTool"] : names
+        names.empty? ? [ "ExampleTool" ] : names
       end
 
       def generated_model_expression
