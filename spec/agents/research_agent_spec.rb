@@ -3,7 +3,7 @@ require 'rails_helper'
 
 RSpec.describe ResearchAgent do
   let(:agent) { ResearchAgent.new }
-  let(:tool) { agent.available_tools.first }
+  let(:tool) { agent.available_tools.first.new }
 
   it "automatically discovers tools in its namespace" do
     tools = agent.available_tools

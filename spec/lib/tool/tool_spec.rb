@@ -125,7 +125,7 @@ RSpec.describe OmniAgent::Tool do
       tool_instance = klass.new
       allow(klass).to receive(:new).and_return(tool_instance)
 
-      result = klass.invoke("term" => "ruby", "limit" => 3)
+      result = tool_instance.invoke("term" => "ruby", "limit" => 3)
 
       expect(result).to eq(term: "ruby", limit: 3)
       expect(tool_instance.received).to eq(term: "ruby", limit: 3)
@@ -147,7 +147,7 @@ RSpec.describe OmniAgent::Tool do
       tool_instance = klass.new
       allow(klass).to receive(:new).and_return(tool_instance)
 
-      result = klass.invoke("query" => "ruby", "unexpected" => 123)
+      result = tool_instance.invoke("query" => "ruby", "unexpected" => 123)
 
       expect(result).to eq(query: "ruby")
       expect(tool_instance.received).to eq(query: "ruby")

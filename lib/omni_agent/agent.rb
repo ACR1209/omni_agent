@@ -189,7 +189,7 @@ module OmniAgent
             tool_instance = tool_class.new
 
             begin
-              result = tool_class.invoke(tool_args)
+              result = tool_instance.invoke(tool_args)
 
               messages << {
                 role: "tool",

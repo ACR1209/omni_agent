@@ -50,12 +50,12 @@ RSpec.describe "Tool integration with a concrete class" do
           description: "Whether to filter explicit content"
         }
       },
-      required: ["query"],
+      required: [ "query" ],
       additionalProperties: false
     )
 
     expect do
-      result = ToolSpecAgent::Tools::WebSearch.invoke("query" => "AI safety")
+      result = ToolSpecAgent::Tools::WebSearch.new.invoke("query" => "AI safety")
       expect(result).to eq("Found 3 articles about AI safety...")
     end.to output("Searching for AI safety (limit: 5, safe: true)...\n").to_stdout
   end

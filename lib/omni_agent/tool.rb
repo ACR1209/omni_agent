@@ -40,14 +40,10 @@ module OmniAgent
         }
       end
 
-      def invoke(arguments_hash)
+      def parse_arguments(arguments_hash)
         kwargs = arguments_hash.transform_keys(&:to_sym)
-
         valid_keys = (@properties || {}).keys.map(&:to_sym)
-
-        filtered_kwargs = kwargs.slice(*valid_keys)
-
-        new.execute(**filtered_kwargs)
+        kwargs.slice(*valid_keys)
       end
 
       def stops_generation(value = true)
@@ -71,6 +67,11 @@ module OmniAgent
           tag_name.to_sym
         end
       end
+    end
+
+    def invoke(arguments_hash)
+      filtered_kwargs = self.class.parse_arguments(arguments_hash)
+      execute(**filtered_kwargs)
     end
 
     def stop_generation!
