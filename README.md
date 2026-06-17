@@ -56,10 +56,11 @@ OPENAI_ACCESS_TOKEN=your_api_key_here
 4. Implement your agent prompt and optional tools under:
 
 ```text
-app/agents/research_agent/
+app/agents/
 	research_agent.rb
-	prompt.md.erb
-	tools/
+	research_agent/
+		prompt.md.erb
+		tools/
 ```
 
 ## Agent Example
