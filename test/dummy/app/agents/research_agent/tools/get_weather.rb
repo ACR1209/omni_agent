@@ -1,7 +1,7 @@
 module ResearchAgent::Tools
   class GetWeather < OmniAgent::Tool
     description "Retrieves current weather details."
-    
+
     input do
       string :city, description: "The name of the city"
     end

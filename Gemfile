@@ -15,16 +15,16 @@ gem "rubocop-rails-omakase", require: false
 # Start debugger with binding.b [https://github.com/ruby/debug]
 # gem "debug", ">= 1.0.0"
 
-gem "ruby-lsp", "~> 0.26.9", groups: [:development, :test]
+gem "ruby-lsp", "~> 0.26.9", groups: [ :development, :test ]
 
-gem "rubocop", "~> 1.87", groups: [:development, :test]
+gem "rubocop", "~> 1.87", groups: [ :development, :test ]
 
-gem "rspec", groups: [:development, :test]
-gem "rspec-rails", groups: [:development, :test]
+gem "rspec", groups: [ :development, :test ]
+gem "rspec-rails", groups: [ :development, :test ]
 
 group :development, :test do
-  gem 'vcr'
-  gem 'webmock'
-  gem 'dotenv-rails'
+  gem "vcr"
+  gem "webmock"
+  gem "dotenv-rails"
   gem "openai", "~> 0.66.1"
 end
