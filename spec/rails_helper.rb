@@ -3,6 +3,7 @@ require 'spec_helper'
 require 'dotenv/load'
 
 ENV['RAILS_ENV'] ||= 'test'
+ENV['OPENAI_ACCESS_TOKEN'] ||= 'sk-test-vcr-dummy-key'
 
 require_relative '../test/dummy/config/environment'
 require 'rspec/rails'
