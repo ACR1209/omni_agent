@@ -65,6 +65,27 @@ RSpec.describe OmniAgent::Agent do
     expect(agent.provider.model).to eq("gpt-from-use-model")
   end
 
+  it "resolves a registered provider by name" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+    agent_class = Class.new(described_class)
+    agent = agent_class.new
+
+    provider = agent.send(:resolve_provider, :test_provider, "gpt-resolved")
+
+    expect(provider).to be_a(provider_class)
+    expect(provider.model).to eq("gpt-resolved")
+  end
+
+  it "raises OmniAgent::UnknownProviderError for an unregistered provider name" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+    agent_class = Class.new(described_class)
+    agent = agent_class.new
+
+    expect do
+      agent.send(:resolve_provider, :nonexistent, "gpt-resolved")
+    end.to raise_error(OmniAgent::UnknownProviderError, /Unknown provider :nonexistent.*test_provider/)
+  end
+
   it "raises when provider is declared after use_model" do
     expect do
       Class.new(described_class) do

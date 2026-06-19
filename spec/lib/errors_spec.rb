@@ -13,9 +13,16 @@ RSpec.describe OmniAgent::MissingDependencyError do
   end
 end
 
+RSpec.describe OmniAgent::UnknownProviderError do
+  it "inherits from OmniAgent::Error" do
+    expect(described_class).to be < OmniAgent::Error
+  end
+end
+
 RSpec.describe OmniAgent::Errors do
   it "defines the expected error classes" do
     expect(OmniAgent::Errors::Error).to eq(OmniAgent::Error)
     expect(OmniAgent::Errors::MissingDependencyError).to eq(OmniAgent::MissingDependencyError)
+    expect(OmniAgent::Errors::UnknownProviderError).to eq(OmniAgent::UnknownProviderError)
   end
 end
