@@ -46,7 +46,7 @@ module OmniAgent
       end
 
       def agent_file_path
-        File.join(destination_root, "#{file_name}.rb")
+        File.join(destination_root, "app", "agents", "#{file_name}.rb")
       end
 
       def prompt_file_path
