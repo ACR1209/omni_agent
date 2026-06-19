@@ -564,6 +564,35 @@ RSpec.describe OmniAgent::Agent do
     expect(result.generated_messages[2]).to eq(role: "tool", tool_call_id: "call_1", name: "ContinueTool", content: "tool result")
   end
 
+  it "raises MaxToolIterationsError instead of looping forever when the model keeps calling tools" do
+    OmniAgent.configure { |config| config.default_provider = :test_provider }
+    OmniAgent.configuration.max_tool_iterations = 3
+
+    stub_const("LoopingTool", Class.new(OmniAgent::Tool) do
+      def execute(**_args)
+        "tool result"
+      end
+    end)
+
+    agent_class = Class.new(described_class)
+    agent = agent_class.new
+
+    never_ending_response = OmniAgent::Providers::Response.new(
+      content: nil,
+      raw_response: {},
+      tool_calls: [ { id: "call_x", name: "LoopingTool", arguments: {} } ]
+    )
+
+    allow(agent).to receive(:available_tools).and_return([ LoopingTool ])
+    allow(agent.provider).to receive(:chat).and_return(never_ending_response)
+
+    expect do
+      agent.run("Hello")
+    end.to raise_error(OmniAgent::MaxToolIterationsError, /Exceeded max_tool_iterations \(3\)/)
+
+    expect(agent.provider).to have_received(:chat).exactly(3).times
+  end
+
   it "supports class-level with helper to prefill context" do
     OmniAgent.configure { |config| config.default_provider = :test_provider }
 

@@ -3,9 +3,11 @@ module OmniAgent
     class Error < StandardError; end
     class MissingDependencyError < Error; end
     class UnknownProviderError < Error; end
+    class MaxToolIterationsError < Error; end
   end
 
   Error = Errors::Error
   MissingDependencyError = Errors::MissingDependencyError
   UnknownProviderError = Errors::UnknownProviderError
+  MaxToolIterationsError = Errors::MaxToolIterationsError
 end

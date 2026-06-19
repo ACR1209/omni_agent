@@ -159,8 +159,17 @@ module OmniAgent
       initial_messages_count = messages.length - 1
 
       filtered_tools = tool_filter(tools: available_tools, agent_tags: self.class.tags)
+      max_iterations = OmniAgent.configuration.max_tool_iterations
+      iterations = 0
 
       loop do
+        iterations += 1
+        if iterations > max_iterations
+          raise OmniAgent::MaxToolIterationsError,
+                "Exceeded max_tool_iterations (#{max_iterations}) without a final response. " \
+                "Increase OmniAgent.configuration.max_tool_iterations if more tool calls are expected."
+        end
+
         response = provider.chat(messages: messages, tools: filtered_tools, **@chat_options)
 
         if response.content && !response.tool_calls?
