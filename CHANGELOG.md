@@ -14,25 +14,17 @@ All notable changes to this project will be documented in this file.
 - Improved provider resolution error handling for unknown providers.
 - Forced eager load of error aliases to avoid Zeitwerk autoloading issues.
 
-## [0.1.0] - 2026-06-09
-
-### Added
-- Initial release of OmniAgent as a Rails engine for building application-native AI agents.
-- Agent runtime with provider abstraction, tool-calling loop, callbacks, and prompt rendering.
-- OpenAI provider support via the `openai` gem.
-- Tool DSL with JSON schema generation.
-- Rails generators and tasks for agent scaffolding.
-- RSpec coverage for agent runtime, providers, tools, and integration flows.
-
-## [0.1.1] - 2026-06-09
-
-### Changed
-- Lowered Rails version needed.
-
-## [0.1.2] - 2026-06-11
+# [0.1.4] - 2026-06-16
 
 ### Fixed
-- Fixed Zeitwerk issue with `OmniAgent::Errors`
+- Change invoke method to an instance method instead of a class method, to actually catch invocations of the `stop_generation!` method.
+
+### Changed
+- Remove agent file from directory to prevent needing to change Zeitwerk initializer as Railtie wasn't allowing to change behaviour without it. 
+
+### Added
+- Add Railtie to project to handle concerns.
+- Added docusaurus, the actual docs will be done later. 
 
 ## [0.1.3] - 2026-06-12
 
@@ -46,14 +38,22 @@ All notable changes to this project will be documented in this file.
 - Added `history` as a context variable which are the messages to be sent to the provider.
 - Added support for nested datatypes in the `array` schema for tools
 
-# [0.1.4] - 2026-06-16
+## [0.1.2] - 2026-06-11
 
 ### Fixed
-- Change invoke method to an instance method instead of a class method, to actually catch invocations of the `stop_generation!` method.
+- Fixed Zeitwerk issue with `OmniAgent::Errors`
+
+## [0.1.1] - 2026-06-09
 
 ### Changed
-- Remove agent file from directory to prevent needing to change Zeitwerk initializer as Railtie wasn't allowing to change behaviour without it. 
+- Lowered Rails version needed.
+
+## [0.1.0] - 2026-06-09
 
 ### Added
-- Add Railtie to project to handle concerns.
-- Added docusaurus, the actual docs will be done later. 
+- Initial release of OmniAgent as a Rails engine for building application-native AI agents.
+- Agent runtime with provider abstraction, tool-calling loop, callbacks, and prompt rendering.
+- OpenAI provider support via the `openai` gem.
+- Tool DSL with JSON schema generation.
+- Rails generators and tasks for agent scaffolding.
+- RSpec coverage for agent runtime, providers, tools, and integration flows.
