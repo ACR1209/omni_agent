@@ -44,7 +44,7 @@ module OmniAgent
         payload[:tools] = openai_tools if openai_tools.any?
         payload.merge!(options) if options.any?
 
-        response = client.chat.completions.create(**payload)
+        response = with_retries { client.chat.completions.create(**payload) }
 
         parse_response(response, payload)
       rescue => e
@@ -52,6 +52,13 @@ module OmniAgent
       end
 
       protected
+
+      def retryable_error?(error)
+        defined?(::OpenAI::Errors) &&
+          (error.is_a?(::OpenAI::Errors::RateLimitError) ||
+           error.is_a?(::OpenAI::Errors::InternalServerError) ||
+           error.is_a?(::OpenAI::Errors::APIConnectionError))
+      end
 
       def client
         @client ||= ::OpenAI::Client.new(api_key: @api_key)

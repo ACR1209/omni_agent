@@ -49,6 +49,29 @@ module OmniAgent
         raise NotImplementedError, "Providers must define a default model"
       end
 
+      # Override in subclasses to flag exceptions worth retrying (rate limits, timeouts, 5xx).
+      def retryable_error?(_error)
+        false
+      end
+
+      def with_retries
+        max_retries = OmniAgent.configuration.max_retries
+        base_delay = OmniAgent.configuration.retry_base_delay
+        attempt = 0
+
+        begin
+          yield
+        rescue => e
+          raise unless retryable_error?(e)
+
+          attempt += 1
+          raise if attempt > max_retries
+
+          sleep(base_delay * (2**(attempt - 1)))
+          retry
+        end
+      end
+
       def validate_message_payload!(message, index, role_name)
         has_content = message.key?(:content) || message.key?("content")
         content_value = message[:content] || message["content"]
