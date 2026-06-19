@@ -1,0 +1,42 @@
+---
+sidebar_position: 6
+---
+
+# Generators
+
+Omni Agent ships two Rails generators to scaffold your project.
+
+## Install Generator
+
+```bash
+rails generate omni_agent:install
+```
+
+Creates the `app/agents` root directory. Run this once per application, right after installing the gem.
+
+## Agent Generator
+
+```bash
+rails generate omni_agent:agent ResearchAgent --model gpt-4o-mini --with-tools WeatherLookup Summarize
+```
+
+Generates:
+
+```text
+app/agents/
+├── research_agent.rb
+└── research_agent/
+    ├── prompt.md.erb
+    └── tools/
+        ├── weather_lookup.rb
+        └── summarize.rb
+```
+
+### Options
+
+* **`--model`**: Sets the model used in the generated `use_model` call. If omitted, the agent uses `OmniAgent.configuration.default_model`.
+* **`--with-tools`**: Space-separated list of tool names to scaffold under `tools/`. Each is generated as a subclass of `OmniAgent::Tool` with an example `input` schema and `execute` method. If you pass `--with-tools` with no names, an `ExampleTool` is generated.
+
+```bash
+rails generate omni_agent:agent SupportAgent --with-tools
+```

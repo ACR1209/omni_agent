@@ -1,0 +1,36 @@
+---
+sidebar_position: 4
+---
+
+# Configuration
+
+Omni Agent ships with sensible defaults but lets you configure global behavior through an initializer.
+
+## Global Defaults
+
+Create `config/initializers/omni_agent.rb` in your Rails app:
+
+```ruby
+OmniAgent.configure do |config|
+  config.default_provider = :openai
+  config.default_model = "gpt-4o-mini"
+end
+```
+
+* **`default_provider`**: The provider used by agents that don't declare their own via `provider` or `use_model`. Defaults to `:openai`.
+* **`default_model`**: The model used when an agent doesn't override it. Defaults to `"gpt-4o-mini"`.
+
+## Per-Agent Overrides
+
+Any agent can override these defaults individually. See [Change an Agent's Provider or Model](/docs/agent/provider) for the `provider` and `use_model` DSL.
+
+## Registered Providers
+
+Providers are resolved from a registry at runtime:
+
+```ruby
+OmniAgent::Providers.registry
+# => { openai: OmniAgent::Providers::OpenAI, mock: OmniAgent::Providers::Mock }
+```
+
+The `:mock` provider is useful for tests — it returns a canned response without making network calls.

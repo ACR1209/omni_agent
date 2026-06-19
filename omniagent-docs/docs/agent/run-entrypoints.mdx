@@ -1,0 +1,70 @@
+---
+sidebar_position: 2
+---
+
+# Run Entrypoints
+
+`OmniAgent::Agent` always exposes the low-level `run` method, but you'll usually call an agent through one of its higher-level entrypoints.
+
+## Implicit Entrypoints
+
+Any zero-argument instance method you define on an agent automatically becomes a runnable entrypoint:
+
+```ruby
+class ResearchAgent < OmniAgent::Agent
+  use_model "gpt-4o-mini"
+
+  def summarize
+    @message = "Summarize the latest market trends."
+  end
+end
+```
+
+Calling `ResearchAgent.new.summarize` with no arguments runs your method body and uses its return value (or `@message`, if set) as the input sent to the model. Calling it **with** arguments instead runs the agent directly:
+
+```ruby
+ResearchAgent.new.summarize                      # runs `summarize`, then calls the model
+ResearchAgent.new.summarize("Custom input")       # skips to `run` with this input
+ResearchAgent.new.summarize(context: { history: [...] })
+```
+
+This is handled by `method_added`, so it works for any method you define — no extra declaration needed. It also means the prompt file used is named after the calling method: defining `summarize` will look for `app/agents/research_agent/summarize.md.erb` in addition to the base `prompt.md.erb`.
+
+## Explicit Run Aliases
+
+If you'd rather declare entrypoints explicitly instead of relying on every zero-arg method, use `run_aliases`:
+
+```ruby
+class ResearchAgent < OmniAgent::Agent
+  run_aliases :ask, :follow_up
+end
+```
+
+This defines `ask` and `follow_up` as direct wrappers around `run`, each tagged with their own name as `prompt_method` (so they can pick up a matching `<method_name>.md.erb` prompt file).
+
+## Calling the Agent Directly
+
+The simplest way to run an agent is `.new.run(input)`:
+
+```ruby
+ResearchAgent.new.run("Hello!")
+```
+
+## Scoped Instances with `with`
+
+Use the class-level `with` helper to build a pre-configured instance without mutating the class itself:
+
+```ruby
+ResearchAgent.with(user_id: 42).run("What's new?")
+
+ResearchAgent.with(
+  provider_override: :mock,
+  model_override: "gpt-4.1-mini"
+).run("Test run")
+```
+
+`with` accepts:
+
+* **Context kwargs** (e.g. `user_id: 42`) — merged into every `run` call made on the returned instance.
+* **`provider_override`** / **`model_override`** — temporarily swap the provider or model for this instance only.
+* **`options_override`** — merged into the chat options sent to the provider.

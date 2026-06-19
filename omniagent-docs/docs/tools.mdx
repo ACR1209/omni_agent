@@ -1,0 +1,91 @@
+---
+sidebar_position: 5
+---
+
+# Tools
+
+Tools are how agents take action beyond generating text. Every tool is a small class that declares an input schema and implements `#execute`.
+
+## Defining a Tool
+
+Tools generated for an agent live under `app/agents/<agent_name>/tools/` and are namespaced under `<AgentClass>::Tools`:
+
+```ruby
+module ResearchAgent::Tools
+  class GetWeather < OmniAgent::Tool
+    description "Get current weather for a city"
+    tags :weather
+    metadata category: :utility
+
+    input do
+      string :city, description: "City name"
+    end
+
+    def execute(city:)
+      "Sunny in #{city}"
+    end
+  end
+end
+```
+
+* **`description`**: Sent to the provider so the model knows when to call the tool.
+* **`tags`**: Symbols used for filtering tools available to an agent.
+* **`metadata`**: Free-form hash for your own bookkeeping (not sent to the provider).
+* **`input`**: Declares the JSON-schema-style parameters the model must supply.
+* **`execute`**: Runs when the model calls the tool. Receives the parsed arguments as keyword args.
+
+## Input Schema DSL
+
+Use `input do ... end` to declare typed parameters:
+
+```ruby
+input do
+  string :city, description: "City name"
+  integer :days, description: "Forecast length", required: false
+  boolean :metric, required: false
+  array :tags, items_type: "string"
+  hash :coordinates do
+    string :lat
+    string :lng
+  end
+end
+```
+
+Supported field types:
+
+* **`string`**
+* **`integer`**
+* **`boolean`**
+* **`array`** — pass `items_type:` for primitive items, or a block for an array of objects
+* **`hash`** — pass a block to declare nested properties, or omit it for a free-form object
+
+All fields are `required: true` by default. Pass `required: false` to make a field optional.
+
+## Stopping Generation Early
+
+Sometimes a tool call should end the agent's run instead of looping back to the model — for example, a tool that hands off to a human or returns a final answer directly.
+
+Declare it at the class level:
+
+```ruby
+class Escalate < OmniAgent::Tool
+  stops_generation
+
+  def execute(reason:)
+    "Escalated: #{reason}"
+  end
+end
+```
+
+Or trigger it conditionally from inside `#execute`:
+
+```ruby
+def execute(reason:)
+  stop_generation! if reason == "urgent"
+  "Logged: #{reason}"
+end
+```
+
+## How Tools Are Discovered
+
+`OmniAgent::Agent#available_tools` looks up the `<AgentClass>::Tools` namespace and collects every constant that is a subclass of `OmniAgent::Tool`. There's no manual registration step — defining a tool class in the right namespace is enough for the agent to pick it up.

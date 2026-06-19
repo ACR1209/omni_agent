@@ -1,0 +1,61 @@
+---
+sidebar_position: 1
+---
+
+# Generation Callbacks
+
+Agents support `before_generation` and `after_generation` callbacks, letting you hook into the lifecycle of a single `run` without overriding it yourself.
+
+## Before Generation
+
+Runs before any provider call is made — useful for setting up instance variables that your prompt template needs.
+
+```ruby
+class ResearchAgent < OmniAgent::Agent
+  use_model "gpt-4o-mini"
+
+  before_generation :set_current_user
+
+  def set_current_user
+    @user = "Test User"
+  end
+end
+```
+
+Any instance variable you set here is automatically available inside `prompt.md.erb` via ERB interpolation.
+
+## After Generation
+
+Runs once the agent has a final response (no more tool calls to make, or a tool explicitly stopped generation).
+
+```ruby
+class ResearchAgent < OmniAgent::Agent
+  after_generation :log_response
+
+  def log_response(payload)
+    Rails.logger.info("Response: #{payload[:response].content}")
+  end
+end
+```
+
+Callback methods can take zero arguments or one. If they accept an argument, they receive a payload hash:
+
+| Key | Before generation | After generation |
+|---|---|---|
+| `input` | ✓ | ✓ |
+| `context` | ✓ | ✓ |
+| `messages` | ✓ | ✓ |
+| `generated_messages` | | ✓ |
+| `response` | | ✓ |
+
+## Multiple Callbacks
+
+Both directives accept multiple method names and are additive across calls — calling `before_generation` again appends rather than replacing:
+
+```ruby
+before_generation :set_current_user, :load_preferences
+```
+
+## Context Binding
+
+Instance variables you set inside a callback (or anywhere in the agent) are synced back into the run's `context` hash after each callback finishes, so later callbacks and the prompt template see the latest values.
