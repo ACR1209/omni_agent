@@ -14,11 +14,25 @@ Create `config/initializers/omni_agent.rb` in your Rails app:
 OmniAgent.configure do |config|
   config.default_provider = :openai
   config.default_model = "gpt-4o-mini"
+  config.max_retries = 3
+  config.retry_base_delay = 0.5
+  config.max_tool_iterations = 10
 end
 ```
 
 * **`default_provider`**: The provider used by agents that don't declare their own via `provider` or `use_model`. Defaults to `:openai`.
 * **`default_model`**: The model used when an agent doesn't override it. Defaults to `"gpt-4o-mini"`.
+* **`max_retries`**: Max retry attempts for retryable provider errors (rate limits, timeouts, 5xx). Defaults to `3`.
+* **`retry_base_delay`**: Base delay in seconds for retry backoff. Delay doubles per attempt (exponential backoff). Defaults to `0.5`.
+* **`max_tool_iterations`**: Max number of tool-call round trips the agent loop will perform before giving up on a final response. Defaults to `10`.
+
+## Retry Behavior
+
+Providers can mark specific errors as retryable (e.g. the OpenAI provider retries `RateLimitError`, `InternalServerError`, and `APIConnectionError`). When a retryable error occurs, the provider retries up to `max_retries` times with exponential backoff (`retry_base_delay * 2^(attempt - 1)`). Non-retryable errors raise immediately.
+
+## Tool Iteration Limit
+
+The agent loop keeps calling tools until the model returns a final response. If the model keeps requesting tools past `max_tool_iterations`, the agent raises `OmniAgent::MaxToolIterationsError`. Raise `max_tool_iterations` in your initializer if your agent legitimately needs more tool round trips.
 
 ## Per-Agent Overrides
 
