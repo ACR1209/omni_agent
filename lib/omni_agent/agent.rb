@@ -313,7 +313,7 @@ module OmniAgent
 
       unless provider_class
         known = OmniAgent::Providers.registry.keys.join(", ")
-        raise OmniAgent::Errors::UnknownProviderError,
+        raise OmniAgent::UnknownProviderError,
               "Unknown provider #{name.inspect}. Known providers: #{known}"
       end
 
