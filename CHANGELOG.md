@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-06-18
+
+### Added
+- Added max tool iterations limit on the agent loop, with corresponding error raised when exceeded.
+- Added retry logic to the OpenAI provider, configurable via `Configuration`.
+
+### Fixed
+- Improved provider resolution error handling for unknown providers.
+- Forced eager load of error aliases to avoid Zeitwerk autoloading issues.
+
 ## [0.1.0] - 2026-06-09
 
 ### Added
