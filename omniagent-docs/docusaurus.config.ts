@@ -67,10 +67,6 @@ const config: Config = {
     },
     navbar: {
       title: 'Omni Agent',
-      logo: {
-        alt: 'Omni Agent Logo',
-        src: 'img/logo.svg',
-      },
       items: [
         {
           type: 'docSidebar',
@@ -83,6 +79,7 @@ const config: Config = {
           href: 'https://github.com/ACR1209/omni_agent',
           label: 'GitHub',
           position: 'right',
+          className: 'navbar-github-button',
         },
       ],
     },
