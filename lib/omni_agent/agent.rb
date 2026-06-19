@@ -309,7 +309,15 @@ module OmniAgent
     end
 
     def resolve_provider(name, model)
-      OmniAgent::Providers.registry[name.to_sym].new(model: model)
+      provider_class = OmniAgent::Providers.registry[name.to_sym]
+
+      unless provider_class
+        known = OmniAgent::Providers.registry.keys.join(", ")
+        raise OmniAgent::Errors::UnknownProviderError,
+              "Unknown provider #{name.inspect}. Known providers: #{known}"
+      end
+
+      provider_class.new(model: model)
     end
 
     def run_before_generation_callbacks(input:, context:, messages:)
