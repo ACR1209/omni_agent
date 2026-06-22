@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-06-21
+
+### Added
+- Added `OmniAgent::Eval` DSL for testing agent quality: `agent`, `eval_case`, `expect_tool_call`, `expect_output`, and LLM-as-judge `judge` assertions.
+- Added `golden_set` support for generating eval cases from a YAML/JSON dataset file.
+- Added `omni_agent:eval` rake task and `omni_agent:eval` generator for scaffolding and running evals.
+- Added `mock_judge` provider for deterministic judge-assertion testing.
+- Added `eval_judge_provider`/`eval_judge_model` configuration keys.
+- Added `run_alias` to `eval_case`, so evals can target an agent's `run_aliases` method (different prompt file) instead of plain `#run`.
+- Added `with:` to `input` for forwarding context into the agent run.
+- Added eval result caching (keyed on agent class, run_alias, input, context) to avoid re-spending tokens on unchanged cases, configurable via `eval_cache_enabled`/`eval_cache_path`.
+- Added `FRESH=1` env var and `fresh` task arg (`rake "omni_agent:eval[pattern,fresh]"`) to clear the eval cache before running, without manually deleting the cache file.
+- Added `omni_agent` executable (`bundle exec omni_agent eval [pattern] [--fresh]`), an rspec-like CLI alternative to the `omni_agent:eval` rake task.
+
 ## [0.1.5] - 2026-06-18
 
 ### Added
