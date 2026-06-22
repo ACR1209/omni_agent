@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.7](https://github.com/ACR1209/omni_agent/compare/omni_agent-v0.1.6...omni_agent/v0.1.7) (2026-06-22)
+
+
+### Bug Fixes
+
+* **docs:** use release-please block marker for version badge ([b83ca8d](https://github.com/ACR1209/omni_agent/commit/b83ca8dcad4acba976125b2a844e9c67d5a4df73))
+
 ## [Unreleased]
 
 ## [0.1.6] - 2026-06-21
