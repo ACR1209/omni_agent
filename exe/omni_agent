@@ -1,0 +1,42 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "optparse"
+
+options = { fresh: false }
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: omni_agent eval [pattern] [options]"
+  opts.on("--fresh", "Clear the eval cache before running") { options[:fresh] = true }
+end
+
+command = ARGV.shift
+
+case command
+when "eval"
+  parser.parse!(ARGV)
+  pattern = ARGV.shift
+
+  environment_file = File.expand_path("config/environment", Dir.pwd)
+  unless File.exist?("#{environment_file}.rb")
+    abort "Could not find config/environment.rb -- run `omni_agent eval` from your Rails app root."
+  end
+  require environment_file
+
+  status = OmniAgent::Eval::CLI.run(pattern: pattern, fresh: options[:fresh])
+
+  case status
+  when :no_files
+    abort "No eval files found matching #{(pattern || OmniAgent::Eval::CLI::DEFAULT_PATTERN).inspect}"
+  when :no_evals
+    abort "No OmniAgent::Eval subclasses found"
+  when :failed
+    exit 1
+  end
+when nil
+  warn parser.banner
+  exit 1
+else
+  warn "Unknown command: #{command.inspect}"
+  warn parser.banner
+  exit 1
+end

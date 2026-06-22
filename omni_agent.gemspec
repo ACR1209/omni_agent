@@ -15,8 +15,11 @@ Gem::Specification.new do |spec|
   spec.metadata["changelog_uri"] = "https://github.com/ACR1209/omni_agent/blob/main/CHANGELOG.md"
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
-    Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md", "CHANGELOG.md"]
+    Dir["{app,config,db,exe,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md", "CHANGELOG.md"]
   end
+
+  spec.bindir = "exe"
+  spec.executables = [ "omni_agent" ]
 
   spec.add_dependency "rails", ">= 7.0"
   spec.add_dependency "zeitwerk", "~> 2.6"

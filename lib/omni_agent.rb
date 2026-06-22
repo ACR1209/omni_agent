@@ -3,7 +3,7 @@ require "omni_agent/engine" if defined?(Rails)
 require "zeitwerk"
 
 loader = Zeitwerk::Loader.for_gem
-loader.inflector.inflect("openai" => "OpenAI")
+loader.inflector.inflect("openai" => "OpenAI", "cli" => "CLI")
 loader.ignore(File.expand_path("generators", __dir__))
 loader.setup
 
