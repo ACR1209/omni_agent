@@ -20,3 +20,5 @@ jobs:
           bundler-cache: true
 
       - uses: rubygems/release-gem@v1
+        with:
+          release-command: bundle exec rake build release:rubygem_push
