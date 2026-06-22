@@ -97,6 +97,90 @@ module ResearchAgent::Tools
 end
 ```
 
+## Evals
+
+`OmniAgent::Eval` lets you test agent quality: deterministic assertions (tool calls, output matching) and pluggable LLM-as-judge scoring.
+
+```ruby
+class ResearchAgentEval < OmniAgent::Eval
+	agent ResearchAgent
+
+	eval_case "answers weather question" do
+		input "What's the weather in Paris?"
+		expect_tool_call :get_weather, with: { city: "Paris" }
+		expect_output to_include: "Paris"
+	end
+
+	eval_case "is polite" do
+		input "Tell me a joke"
+		judge "Is the response friendly and on-topic?", threshold: 0.7
+	end
+
+	eval_case "summarizes via the :summarize run alias" do
+		run_alias :summarize
+		input "Some long article text...", with: { tone: "casual" }
+		expect_output to_include: "summary"
+	end
+end
+```
+
+* **`input text, with: {}`**: `with:` is forwarded as the agent's `context:`, bound to matching instance variables during the run (e.g. `with: { tone: "casual" }` sets `@tone`).
+* **`run_alias`**: Targets a method defined via `run_aliases` (or any zero-arg run entrypoint) instead of plain `#run` — useful when that alias renders a different prompt file (`<method_name>.md.erb`).
+
+Judge provider resolution order: explicit `provider:` kwarg on `judge` → `OmniAgent.configuration.eval_judge_provider`/`eval_judge_model` → the agent's own provider (zero-config default).
+
+### Caching
+
+Eval runs are cached by default, keyed on `(agent class, run_alias, input, context)`. Re-running the same case (e.g. iterating on assertions) replays the cached output instead of calling the provider again, saving tokens. Configure or disable it:
+
+```ruby
+OmniAgent.configure do |config|
+	config.eval_cache_enabled = true # default
+	config.eval_cache_path = "tmp/omni_agent_eval_cache.json" # default
+end
+```
+
+Bypass the cache for a run (clears it before running, no manual file deletion needed):
+
+```bash
+bundle exec omni_agent eval evals/research_agent_eval.rb --fresh
+```
+
+Sample output:
+
+```text
+[PASS] mentions lorem
+[FAIL] mentions something the mock never says
+  - output "Lorem ipsum dolor sit amet, consectetur adipiscing elit." does not include "this never appears"
+
+1/2 cases passed
+```
+
+Each case prints `[PASS]`/`[FAIL]` plus its name; failing cases list every unmet assertion's message. Exits non-zero if any case failed.
+
+For many input/expected-output pairs, load a YAML/JSON dataset instead of writing a `case` per row:
+
+```ruby
+golden_set "evals/golden/research_agent.yml" do |row|
+	expect_output to_include: row[:expected_output]
+end
+```
+
+Scaffold an eval and run it:
+
+```bash
+bundle exec rails generate omni_agent:eval ResearchAgent
+
+# run from your Rails app root, like running rspec
+bundle exec omni_agent eval
+bundle exec omni_agent eval evals/research_agent_eval.rb
+bundle exec omni_agent eval evals/research_agent_eval.rb --fresh
+```
+
+There's also an equivalent `rake omni_agent:eval` task (`rake "omni_agent:eval[pattern,fresh]"`) if you'd rather not use the binstub.
+
+Calls real LLM providers (cost, non-determinism) — deliberately **not** part of `bundle exec rspec` or CI.
+
 ## Configuration
 
 Global defaults can be configured through `OmniAgent.configure`:

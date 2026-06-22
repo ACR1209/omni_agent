@@ -1,0 +1,21 @@
+---
+sidebar_position: 3
+---
+
+# Judge Provider
+
+`judge` resolves which provider grades the output, in this order:
+
+1. An explicit `provider:` (and optional `model:`) kwarg passed to `judge`.
+2. `OmniAgent.configuration.eval_judge_provider` / `eval_judge_model`, set once globally:
+
+   ```ruby
+   OmniAgent.configure do |config|
+     config.eval_judge_provider = :openai
+     config.eval_judge_model = "gpt-4o-mini"
+   end
+   ```
+
+3. Falls back to the **same provider/model the agent under test already uses** — no judge setup required to get started.
+
+The judge sends a fixed grading prompt asking for `{"score": 0-1, "reason": "..."}` and compares `score` against `threshold` from the `judge` call (see [Generating and Running Evals](./generating-and-running.mdx)).

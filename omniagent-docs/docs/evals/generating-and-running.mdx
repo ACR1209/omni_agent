@@ -1,0 +1,88 @@
+---
+sidebar_position: 1
+---
+
+# Generating and Running Evals
+
+`OmniAgent::Eval` lets you test agent *quality*, not just correctness — deterministic assertions (tool calls, output matching) plus pluggable LLM-as-judge scoring.
+
+## Defining an Eval
+
+```ruby
+class ResearchAgentEval < OmniAgent::Eval
+  agent ResearchAgent
+
+  eval_case "answers weather question" do
+    input "What's the weather in Paris?"
+    expect_tool_call :get_weather, with: { city: "Paris" }
+    expect_output to_include: "Paris"
+  end
+
+  eval_case "is polite" do
+    input "Tell me a joke"
+    judge "Is the response friendly and on-topic?", threshold: 0.7
+  end
+
+  eval_case "summarizes via the :summarize run alias" do
+    run_alias :summarize
+    input "Some long article text...", with: { tone: "casual" }
+    expect_output to_include: "summary"
+  end
+end
+```
+
+* **`agent`**: The `OmniAgent::Agent` subclass under test.
+* **`eval_case`**: Declares one scenario. `input text, with: {}` sets the message sent to the agent; `with:` is forwarded as `context:` and bound to matching instance variables during the run (e.g. `with: { tone: "casual" }` sets `@tone`).
+* **`run_alias`**: Targets a method defined via `run_aliases` (or any zero-arg run entrypoint) instead of plain `#run`. Use this when that alias renders a different prompt file (`app/agents/<agent>/<method_name>.md.erb`) and you want to eval that specific prompt.
+* **`expect_tool_call`**: Asserts a tool was called, optionally with specific arguments (`with:`).
+* **`expect_output`**: Asserts on the agent's final text output via `to_include:`, `to_match:`, or a custom block.
+* **`judge`**: Sends the output to an LLM judge with a grading criterion — see [Judge Provider](./judge-provider.mdx) for how it picks a provider/model.
+
+For testing many input/expected-output pairs without writing a `eval_case` per row, see [Golden Sets](./golden-sets.mdx).
+
+## Generating
+
+```bash
+rails generate omni_agent:eval ResearchAgent
+```
+
+Creates `evals/research_agent_eval.rb` with a starter `eval_case`.
+
+## Running
+
+Run evals with the `omni_agent` CLI — works like running `rspec`:
+
+```bash
+# run every *_eval.rb under evals/
+bundle exec omni_agent eval
+
+# run just one eval file
+bundle exec omni_agent eval evals/research_agent_eval.rb
+
+# bypass the cache for this run (see Caching)
+bundle exec omni_agent eval evals/research_agent_eval.rb --fresh
+```
+
+Run it from your Rails app root — it requires `config/environment.rb` to boot, same as `bin/rails`.
+
+It prints a pass/fail report per case (with failure messages) and exits non-zero if any case failed:
+
+```text
+[PASS] mentions lorem
+[FAIL] mentions something the mock never says
+  - output "Lorem ipsum dolor sit amet, consectetur adipiscing elit." does not include "this never appears"
+
+1/2 cases passed
+```
+
+Running evals calls real LLM providers — it costs money and is non-deterministic, so it is **not** wired into `bundle exec rspec` or CI. Run it manually when you want a quality check.
+
+### Rake task alternative
+
+A `rake omni_agent:eval` task does the same thing, if you'd rather not use the binstub:
+
+```bash
+bundle exec rake omni_agent:eval
+bundle exec rake "omni_agent:eval[evals/research_agent_eval.rb]"
+bundle exec rake "omni_agent:eval[evals/research_agent_eval.rb,fresh]"
+```

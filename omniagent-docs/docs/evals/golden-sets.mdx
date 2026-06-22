@@ -1,0 +1,33 @@
+---
+sidebar_position: 2
+---
+
+# Golden Sets
+
+For many input/expected-output pairs, load a dataset file instead of writing a `eval_case` per row:
+
+```ruby
+class ResearchAgentEval < OmniAgent::Eval
+  agent ResearchAgent
+
+  golden_set "evals/golden/research_agent.yml" do |row|
+    expect_output to_include: row[:expected_output]
+    expect_tool_call row[:tool_call][:name], with: row[:tool_call][:args]
+  end
+end
+```
+
+`evals/golden/research_agent.yml`:
+
+```yaml
+- name: "paris weather"
+  input: "What's the weather in Paris?"
+  expected_output: "Paris"
+  tool_call: { name: get_weather, args: { city: Paris } }
+- name: "tokyo weather"
+  input: "What's the weather in Tokyo?"
+  expected_output: "Tokyo"
+  tool_call: { name: get_weather, args: { city: Tokyo } }
+```
+
+Each row becomes its own `eval_case` (named from `name`, or `"row <index>"` if omitted). All keys are recursively symbolized, so nested fields like `row[:tool_call][:name]` work as shown above. Rows generated from `golden_set` run through the exact same path as inline `eval_case` blocks — there's no separate reporting for them, and they're subject to the same [caching](./caching.mdx).

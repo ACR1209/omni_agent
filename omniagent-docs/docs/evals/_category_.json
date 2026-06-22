@@ -1,0 +1,9 @@
+{
+  "label": "Evals",
+  "position": 7,
+  "link": {
+    "type": "generated-index",
+    "description": "Test agent quality with deterministic assertions and LLM-as-judge scoring."
+  },
+  "collapsed": false
+}

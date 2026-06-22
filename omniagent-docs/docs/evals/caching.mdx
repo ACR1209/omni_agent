@@ -1,0 +1,22 @@
+---
+sidebar_position: 4
+---
+
+# Caching
+
+Eval runs are cached by default, keyed on `(agent class, run_alias, input, context)`, and stored as JSON at `OmniAgent.configuration.eval_cache_path` (default `tmp/omni_agent_eval_cache.json`). Re-running the same case — e.g. while iterating on assertions — replays the cached output instead of calling the provider again, so you don't spend tokens testing the same case twice.
+
+```ruby
+OmniAgent.configure do |config|
+  config.eval_cache_enabled = true # default
+  config.eval_cache_path = "tmp/omni_agent_eval_cache.json" # default
+end
+```
+
+To force a fresh call without deleting the file yourself, clear the cache before running with `--fresh`:
+
+```bash
+bundle exec omni_agent eval evals/research_agent_eval.rb --fresh
+```
+
+The equivalent rake task takes a `fresh` arg instead: `rake "omni_agent:eval[evals/research_agent_eval.rb,fresh]"`.

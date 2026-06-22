@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # Generators
 
-Omni Agent ships two Rails generators to scaffold your project.
+Omni Agent ships three Rails generators to scaffold your project.
 
 ## Install Generator
 
@@ -40,3 +40,11 @@ app/agents/
 ```bash
 rails generate omni_agent:agent SupportAgent --with-tools
 ```
+
+## Eval Generator
+
+```bash
+rails generate omni_agent:eval ResearchAgent
+```
+
+Generates `evals/research_agent_eval.rb` with a starter `eval_case` for `ResearchAgent`. See [Generating and Running Evals](./evals/generating-and-running.mdx), [Golden Sets](./evals/golden-sets.mdx), [Judge Provider](./evals/judge-provider.mdx), and [Caching](./evals/caching.mdx).
