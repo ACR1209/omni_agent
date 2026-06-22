@@ -1,0 +1,8 @@
+- name: "quito weather"
+  input: "What's the weather in Quito?"
+  expected_output: "16°C"
+  tool_call: { name: GetWeather, args: { city: Quito } }
+- name: "tokyo weather"
+  input: "What's the weather in Tokyo?"
+  expected_output: "Tokyo"
+  tool_call: { name: GetWeather, args: { city: Tokyo } }

@@ -1,0 +1,6 @@
+- name: "lorem case"
+  input: "Say something"
+  expected_output: "Lorem"
+- name: "ipsum case"
+  input: "Say something else"
+  expected_output: "ipsum"
