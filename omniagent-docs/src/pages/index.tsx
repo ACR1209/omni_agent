@@ -17,6 +17,7 @@ function HomepageHeader() {
       <div className="container">
         <div className={styles.heroGrid}>
           <div className={styles.heroCopy}>
+            {/* x-release-please-version */}
             <span className={styles.heroBadge}>v0.1.6 &middot; Rails engine</span>
             <Heading as="h1" className={styles.heroTitle}>
               {siteConfig.title}
