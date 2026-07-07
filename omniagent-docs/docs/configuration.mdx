@@ -17,6 +17,7 @@ OmniAgent.configure do |config|
   config.max_retries = 3
   config.retry_base_delay = 0.5
   config.max_tool_iterations = 10
+  config.max_delegation_depth = 5
 end
 ```
 
@@ -25,6 +26,7 @@ end
 * **`max_retries`**: Max retry attempts for retryable provider errors (rate limits, timeouts, 5xx). Defaults to `3`.
 * **`retry_base_delay`**: Base delay in seconds for retry backoff. Delay doubles per attempt (exponential backoff). Defaults to `0.5`.
 * **`max_tool_iterations`**: Max number of tool-call round trips the agent loop will perform before giving up on a final response. Defaults to `10`.
+* **`max_delegation_depth`**: Max nesting depth for [agent delegation](/docs/agent/delegation) chains before raising `OmniAgent::MaxDelegationDepthError`. Defaults to `5`.
 
 ## Retry Behavior
 

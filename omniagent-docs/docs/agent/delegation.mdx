@@ -1,0 +1,57 @@
+---
+sidebar_position: 4
+---
+
+# Multi-Agent Delegation
+
+`delegate_to` wraps another agent as a tool your agent's LLM can call, turning your agent into a **supervisor** that routes work to sub-agents. The delegated agent is defined and used like any other agent — a normal class under `app/agents/`, not a manual tool file.
+
+```ruby
+class SupervisorAgent < OmniAgent::Agent
+  use_model "gpt-4o"
+
+  delegate_to ResearchAgent, as: :research,  description: "Look up factual info"
+  delegate_to MathAgent,     as: :calculate, description: "Do arithmetic"
+end
+```
+
+The model decides when (and whether) to call `research` or `calculate` based on the conversation, exactly like any other tool call. Each delegated agent runs its own `run` loop — including its own tool calls, if it has any — and returns its final answer as the tool result.
+
+* **`agent_class`**: Any `OmniAgent::Agent` subclass.
+* **`as:`**: Name exposed to the model as the tool/function name (e.g. `:research` → `Research`).
+* **`description:`**: Sent to the provider so the model knows when to delegate. Defaults to `"Delegate to <AgentClass>."`.
+
+## Choosing a Run Entrypoint
+
+By default, delegation calls the sub-agent's plain `#run`. Pass `run_alias:` to call a `run_aliases` method (or any zero-arg [run entrypoint](/docs/agent/run-entrypoints)) instead — useful when the sub-agent should render a different prompt file for delegated calls:
+
+```ruby
+class SupervisorAgent < OmniAgent::Agent
+  delegate_to SupportAgent, as: :triage_ticket, run_alias: :triage
+end
+```
+
+## Forwarding Context
+
+Delegated agents run **isolated** by default — they get only the `input` string, none of the supervisor's context. Pass `forward:` to share part or all of it:
+
+```ruby
+class SupervisorAgent < OmniAgent::Agent
+  delegate_to ResearchAgent, as: :research,  forward: [ :user, :locale ]
+  delegate_to MathAgent,     as: :calculate, forward: true
+end
+```
+
+* **`forward: [:key, ...]`**: Only the listed context keys are passed to the sub-agent's `context:`.
+* **`forward: true`**: The entire context hash is forwarded.
+* **`forward: []`** (default): The sub-agent runs with an empty context.
+
+## Guarding Against Runaway Delegation
+
+Since a delegated agent could itself delegate (directly or through a chain of other agents), delegation depth is capped by `OmniAgent.configuration.max_delegation_depth` (default `5`). Exceeding it raises `OmniAgent::MaxDelegationDepthError` instead of recursing forever. Raise the limit in your initializer if you have legitimately deep delegation chains:
+
+```ruby
+OmniAgent.configure do |config|
+  config.max_delegation_depth = 8
+end
+```
