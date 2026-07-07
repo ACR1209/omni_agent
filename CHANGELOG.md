@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.8](https://github.com/ACR1209/omni_agent/compare/omni_agent/v0.1.7...omni_agent/v0.1.8) (2026-07-07)
+
+
+### Features
+
+* implement multi-agent delegation with context forwarding and depth control ([e9b5497](https://github.com/ACR1209/omni_agent/commit/e9b5497b0af89172701bf4c5d93b8d5dccc77a26))
+
 ## [0.1.7](https://github.com/ACR1209/omni_agent/compare/omni_agent-v0.1.6...omni_agent/v0.1.7) (2026-06-22)
 
 
