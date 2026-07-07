@@ -4,6 +4,7 @@ module OmniAgent
     class MissingDependencyError < Error; end
     class UnknownProviderError < Error; end
     class MaxToolIterationsError < Error; end
+    class MaxDelegationDepthError < Error; end
     class EvalAssertionError < Error; end
   end
 
@@ -11,5 +12,6 @@ module OmniAgent
   MissingDependencyError = Errors::MissingDependencyError
   UnknownProviderError = Errors::UnknownProviderError
   MaxToolIterationsError = Errors::MaxToolIterationsError
+  MaxDelegationDepthError = Errors::MaxDelegationDepthError
   EvalAssertionError = Errors::EvalAssertionError
 end

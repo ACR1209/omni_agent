@@ -84,6 +84,21 @@ module OmniAgent
         end
       end
 
+      def delegate_to(agent_class, as:, description: nil, run_alias: nil, forward: [])
+        unless agent_class.is_a?(Class) && agent_class <= OmniAgent::Agent
+          raise ArgumentError, "delegate_to requires an OmniAgent::Agent subclass"
+        end
+
+        tool_class = build_delegated_tool_class(agent_class, description: description, run_alias: run_alias, forward: forward)
+        delegated_tools_module.const_set(delegated_tool_const_name(as), tool_class)
+
+        @delegated_tool_classes = configured_delegated_tool_classes + [ tool_class ]
+      end
+
+      def configured_delegated_tool_classes
+        @delegated_tool_classes || []
+      end
+
       def with(context = nil, provider_override: nil, model_override: nil, options_override: {}, **context_keywords)
         merged_context = {}
         merged_context.merge!(context) if context.is_a?(Hash)
@@ -111,6 +126,58 @@ module OmniAgent
       end
 
       private
+
+      def delegated_tools_module
+        @delegated_tools_module ||= const_set(:DelegatedTools, Module.new)
+      end
+
+      def delegated_tool_const_name(as)
+        as.to_s.split(/[_\s]+/).reject(&:empty?).map { |part| part[0].upcase + part[1..] }.join
+      end
+
+      def build_delegated_tool_class(agent_class, description:, run_alias:, forward:)
+        tool_description = description || "Delegate to #{agent_class.name}."
+
+        Class.new(OmniAgent::Tool) do
+          description tool_description
+
+          input do
+            string :input, description: "Input/question to send to the delegated agent."
+          end
+
+          define_method(:execute) do |input:|
+            forwarded_context = OmniAgent::Agent.__send__(:filter_forwarded_context, context, forward)
+            OmniAgent::Agent.__send__(:run_delegated_agent, agent_class, input, run_alias, forwarded_context)
+          end
+        end
+      end
+
+      def filter_forwarded_context(context, forward)
+        return {} unless context.is_a?(Hash)
+        return context.dup if forward == true
+        return {} if forward.nil? || forward == false
+
+        keys = Array(forward).map(&:to_sym)
+        context.select { |key, _| keys.include?(key.to_sym) }
+      end
+
+      def run_delegated_agent(agent_class, input, run_alias, forwarded_context)
+        depth = (Thread.current[:omni_agent_delegation_depth] ||= 0)
+        max_depth = OmniAgent.configuration.max_delegation_depth
+
+        if depth >= max_depth
+          raise OmniAgent::MaxDelegationDepthError,
+                "Exceeded max_delegation_depth (#{max_depth}) while delegating to #{agent_class.name}."
+        end
+
+        Thread.current[:omni_agent_delegation_depth] = depth + 1
+        begin
+          entrypoint = run_alias || :run
+          agent_class.new.public_send(entrypoint, input, context: forwarded_context).answer
+        ensure
+          Thread.current[:omni_agent_delegation_depth] = depth
+        end
+      end
 
       def normalize_callbacks(callback_type, callbacks)
         raise ArgumentError, "#{callback_type} requires at least one method name" if callbacks.empty?
@@ -196,6 +263,7 @@ module OmniAgent
 
           if tool_class
             tool_instance = tool_class.new
+            tool_instance.context = context if tool_instance.respond_to?(:context=)
 
             begin
               result = tool_instance.invoke(tool_args)
@@ -238,12 +306,17 @@ module OmniAgent
 
     def available_tools
       tool_namespace = "#{self.class.name}::Tools".safe_constantize
-      return [] unless tool_namespace
 
-      tool_namespace.constants.filter_map do |const_name|
-        const = tool_namespace.const_get(const_name)
-        const if const.is_a?(Class) && const < OmniAgent::Tool
+      namespace_tools = if tool_namespace
+        tool_namespace.constants.filter_map do |const_name|
+          const = tool_namespace.const_get(const_name)
+          const if const.is_a?(Class) && const < OmniAgent::Tool
+        end
+      else
+        []
       end
+
+      namespace_tools + self.class.configured_delegated_tool_classes
     end
 
     private

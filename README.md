@@ -97,6 +97,38 @@ module ResearchAgent::Tools
 end
 ```
 
+## Multi-Agent Delegation
+
+`delegate_to` turns an agent into a supervisor: it wraps another agent class as a tool, so the supervisor's LLM can decide when to hand off to it. The delegated agent is a normal, independently defined agent (e.g. `app/agents/research_agent.rb`) — no manual tool file needed.
+
+```ruby
+class SupervisorAgent < OmniAgent::Agent
+	use_model "gpt-4o"
+
+	delegate_to ResearchAgent, as: :research,  description: "Look up factual info"
+	delegate_to MathAgent,     as: :calculate, description: "Do arithmetic"
+end
+```
+
+Each delegated agent runs in isolation (its own fresh instance, no shared context) and returns its final answer as the tool result. Delegation depth is capped by `OmniAgent.configuration.max_delegation_depth` (default `5`) to guard against runaway recursive delegation; exceeding it raises `OmniAgent::MaxDelegationDepthError`.
+
+Pass `run_alias:` to call a `run_aliases` method (or any zero-arg run entrypoint) on the delegated agent instead of its default `#run` — useful when the sub-agent should render a different prompt file for delegated calls:
+
+```ruby
+class SupervisorAgent < OmniAgent::Agent
+	delegate_to SupportAgent, as: :triage_ticket, run_alias: :triage
+end
+```
+
+Pass `forward:` to share part (or all) of the supervisor's context with the delegated agent — an array of context keys, or `true` to forward everything. Omitted keys, and the default (`forward: []`), keep the delegated agent fully isolated:
+
+```ruby
+class SupervisorAgent < OmniAgent::Agent
+	delegate_to ResearchAgent, as: :research, forward: [ :user, :locale ]
+	delegate_to MathAgent,     as: :calculate, forward: true
+end
+```
+
 ## Evals
 
 `OmniAgent::Eval` lets you test agent quality: deterministic assertions (tool calls, output matching) and pluggable LLM-as-judge scoring.

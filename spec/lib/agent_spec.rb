@@ -2,6 +2,7 @@ require_relative "../spec_helper"
 require_relative "../../lib/omni_agent"
 require_relative "../../lib/omni_agent/agent"
 require_relative "../../lib/omni_agent/errors"
+require "active_support/core_ext/string/inflections"
 require "fileutils"
 require "pathname"
 require "tmpdir"
@@ -904,5 +905,229 @@ RSpec.describe OmniAgent::Agent do
     expect(agent.events).to eq([ :before, :after ])
     expect(agent.respond_to?(:mark_before)).to be(false)
     expect { agent.mark_before("input") }.to raise_error(NoMethodError)
+  end
+
+  describe ".delegate_to" do
+    around do |example|
+      previous_config = OmniAgent.instance_variable_get(:@configuration)
+      OmniAgent.instance_variable_set(:@configuration, nil)
+      example.run
+      OmniAgent.instance_variable_set(:@configuration, previous_config)
+    end
+
+    it "registers a delegated agent as a tool available to the supervisor" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      sub_agent_class = Class.new(described_class)
+      stub_const("ResearchAgent", sub_agent_class)
+
+      supervisor_class = Class.new(described_class) do
+        delegate_to ResearchAgent, as: :research, description: "Look up factual info"
+      end
+      stub_const("SupervisorAgent", supervisor_class)
+
+      supervisor = SupervisorAgent.new
+      tool_class = supervisor.available_tools.first
+
+      expect(supervisor.available_tools.size).to eq(1)
+      expect(tool_class.name.split("::").last).to eq("Research")
+      expect(tool_class.description).to eq("Look up factual info")
+      expect(tool_class < OmniAgent::Tool).to be(true)
+    end
+
+    it "raises when delegating to a class that is not an OmniAgent::Agent" do
+      not_an_agent = Class.new
+
+      expect do
+        Class.new(described_class) do
+          delegate_to not_an_agent, as: :research
+        end
+      end.to raise_error(ArgumentError, /delegate_to requires an OmniAgent::Agent subclass/)
+    end
+
+    it "invokes the delegated agent's run and returns its answer when the tool executes" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      sub_agent_class = Class.new(described_class)
+      stub_const("MathAgent", sub_agent_class)
+      allow_any_instance_of(MathAgent).to receive(:available_tools).and_return([])
+
+      supervisor_class = Class.new(described_class) do
+        delegate_to MathAgent, as: :calculate, description: "Do arithmetic"
+      end
+      stub_const("CalcSupervisorAgent", supervisor_class)
+
+      tool_class = CalcSupervisorAgent.new.available_tools.first
+      result = tool_class.new.invoke("input" => "2 + 2")
+
+      expect(result).to eq("ok")
+    end
+
+    it "invokes the given run_alias on the delegated agent instead of #run" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      sub_agent_class = Class.new(described_class) do
+        run_aliases :triage
+      end
+      stub_const("TriageAgent", sub_agent_class)
+      allow_any_instance_of(TriageAgent).to receive(:available_tools).and_return([])
+
+      captured_prompt_method = nil
+      allow_any_instance_of(TriageAgent).to receive(:run).and_wrap_original do |method, input, **kwargs|
+        captured_prompt_method = kwargs[:prompt_method]
+        method.call(input, **kwargs)
+      end
+
+      supervisor_class = Class.new(described_class) do
+        delegate_to TriageAgent, as: :triage_ticket, run_alias: :triage
+      end
+      stub_const("TriageSupervisorAgent", supervisor_class)
+
+      tool_class = TriageSupervisorAgent.new.available_tools.first
+      result = tool_class.new.invoke("input" => "My order is late")
+
+      expect(result).to eq("ok")
+      expect(captured_prompt_method).to eq(:triage)
+    end
+
+    it "does not forward context to the delegated agent by default" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      sub_agent_class = Class.new(described_class)
+      stub_const("IsolatedAgent", sub_agent_class)
+      allow_any_instance_of(IsolatedAgent).to receive(:available_tools).and_return([])
+
+      captured_context = :not_called
+      allow_any_instance_of(IsolatedAgent).to receive(:run).and_wrap_original do |method, input, **kwargs|
+        captured_context = kwargs[:context]
+        method.call(input, **kwargs)
+      end
+
+      supervisor_class = Class.new(described_class) do
+        delegate_to IsolatedAgent, as: :isolated
+      end
+      stub_const("IsolatedSupervisorAgent", supervisor_class)
+
+      tool_class = IsolatedSupervisorAgent.new.available_tools.first
+      tool_instance = tool_class.new
+      tool_instance.context = { user: "Alice", secret: "shh" }
+      tool_instance.invoke("input" => "go")
+
+      expect(captured_context).to eq({})
+    end
+
+    it "forwards only the listed context keys when forward: is an array" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      sub_agent_class = Class.new(described_class)
+      stub_const("PartialForwardAgent", sub_agent_class)
+      allow_any_instance_of(PartialForwardAgent).to receive(:available_tools).and_return([])
+
+      captured_context = nil
+      allow_any_instance_of(PartialForwardAgent).to receive(:run).and_wrap_original do |method, input, **kwargs|
+        captured_context = kwargs[:context]
+        method.call(input, **kwargs)
+      end
+
+      supervisor_class = Class.new(described_class) do
+        delegate_to PartialForwardAgent, as: :partial, forward: [ :user ]
+      end
+      stub_const("PartialForwardSupervisorAgent", supervisor_class)
+
+      tool_class = PartialForwardSupervisorAgent.new.available_tools.first
+      tool_instance = tool_class.new
+      tool_instance.context = { user: "Alice", secret: "shh" }
+      tool_instance.invoke("input" => "go")
+
+      expect(captured_context).to eq(user: "Alice")
+    end
+
+    it "forwards the entire context when forward: true" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      sub_agent_class = Class.new(described_class)
+      stub_const("FullForwardAgent", sub_agent_class)
+      allow_any_instance_of(FullForwardAgent).to receive(:available_tools).and_return([])
+
+      captured_context = nil
+      allow_any_instance_of(FullForwardAgent).to receive(:run).and_wrap_original do |method, input, **kwargs|
+        captured_context = kwargs[:context]
+        method.call(input, **kwargs)
+      end
+
+      supervisor_class = Class.new(described_class) do
+        delegate_to FullForwardAgent, as: :full, forward: true
+      end
+      stub_const("FullForwardSupervisorAgent", supervisor_class)
+
+      tool_class = FullForwardSupervisorAgent.new.available_tools.first
+      tool_instance = tool_class.new
+      tool_instance.context = { user: "Alice", secret: "shh" }
+      tool_instance.invoke("input" => "go")
+
+      expect(captured_context).to eq(user: "Alice", secret: "shh")
+    end
+
+    it "sets the tool instance's context from the supervisor's run context before invoking" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      sub_agent_class = Class.new(described_class)
+      stub_const("ContextBridgeAgent", sub_agent_class)
+      allow_any_instance_of(ContextBridgeAgent).to receive(:available_tools).and_return([])
+
+      captured_context = nil
+      allow_any_instance_of(ContextBridgeAgent).to receive(:run).and_wrap_original do |method, input, **kwargs|
+        captured_context = kwargs[:context]
+        method.call(input, **kwargs)
+      end
+
+      supervisor_class = Class.new(described_class) do
+        delegate_to ContextBridgeAgent, as: :bridge, forward: [ :request_id ]
+      end
+      stub_const("ContextBridgeSupervisorAgent", supervisor_class)
+
+      supervisor = ContextBridgeSupervisorAgent.new
+      tool_class = supervisor.available_tools.first
+
+      response_with_tool_call = OmniAgent::Providers::Response.new(
+        content: nil,
+        raw_response: {},
+        tool_calls: [ { id: "call_0", name: tool_class.name.split("::").last, arguments: { "input" => "go" } } ]
+      )
+      final_response = OmniAgent::Providers::Response.new(content: "done", raw_response: {}, tool_calls: [])
+
+      allow(supervisor.provider).to receive(:chat).and_return(response_with_tool_call, final_response)
+
+      supervisor.run("Hello", context: { request_id: "req-1", other: "dropped" })
+
+      expect(captured_context).to eq(request_id: "req-1")
+    end
+
+    it "raises MaxDelegationDepthError once the thread's delegation depth reaches the configured limit" do
+      OmniAgent.configure do |config|
+        config.default_provider = :test_provider
+        config.max_delegation_depth = 2
+      end
+
+      sub_agent_class = Class.new(described_class)
+      stub_const("DeepAgent", sub_agent_class)
+
+      supervisor_class = Class.new(described_class) do
+        delegate_to DeepAgent, as: :go_deep
+      end
+      stub_const("DeepSupervisorAgent", supervisor_class)
+
+      tool_class = DeepSupervisorAgent.new.available_tools.first
+
+      begin
+        Thread.current[:omni_agent_delegation_depth] = 2
+
+        expect do
+          tool_class.new.invoke("input" => "go")
+        end.to raise_error(OmniAgent::MaxDelegationDepthError, /Exceeded max_delegation_depth \(2\)/)
+      ensure
+        Thread.current[:omni_agent_delegation_depth] = nil
+      end
+    end
   end
 end

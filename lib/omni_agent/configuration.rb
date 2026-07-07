@@ -1,7 +1,7 @@
 module OmniAgent
   class Configuration
     attr_accessor :default_provider, :default_model, :max_retries, :retry_base_delay, :max_tool_iterations,
-                  :eval_judge_provider, :eval_judge_model, :eval_cache_enabled, :eval_cache_path
+                  :max_delegation_depth, :eval_judge_provider, :eval_judge_model, :eval_cache_enabled, :eval_cache_path
 
     def initialize
       @default_provider = :openai
@@ -9,6 +9,7 @@ module OmniAgent
       @max_retries = 3
       @retry_base_delay = 0.5
       @max_tool_iterations = 10
+      @max_delegation_depth = 5
       @eval_judge_provider = nil
       @eval_judge_model = nil
       @eval_cache_enabled = true

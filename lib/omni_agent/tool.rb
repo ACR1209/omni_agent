@@ -69,6 +69,12 @@ module OmniAgent
       end
     end
 
+    attr_accessor :context
+
+    def initialize
+      @context = {}
+    end
+
     def invoke(arguments_hash)
       filtered_kwargs = self.class.parse_arguments(arguments_hash)
       execute(**filtered_kwargs)
