@@ -15,7 +15,7 @@ gem "rubocop-rails-omakase", require: false
 # Start debugger with binding.b [https://github.com/ruby/debug]
 # gem "debug", ">= 1.0.0"
 
-gem "ruby-lsp", "~> 0.26.9", groups: [ :development, :test ]
+gem "ruby-lsp", "~> 0.26.10", groups: [ :development, :test ]
 
 gem "rubocop", "~> 1.88", groups: [ :development, :test ]
 
