@@ -1158,7 +1158,7 @@ RSpec.describe OmniAgent::Agent do
         OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
       end
 
-      sink = ->(event) {}
+      sink = ->(event) { }
       agent.run("Hello", &sink)
 
       expect(captured_stream).to eq(sink)

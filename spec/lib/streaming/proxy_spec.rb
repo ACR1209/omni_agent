@@ -6,7 +6,7 @@ RSpec.describe OmniAgent::Streaming::Proxy do
   let(:proxy) { described_class.new(agent) }
 
   it "forwards method calls and blocks to the wrapped agent" do
-    block = -> {}
+    block = -> { }
     expect(agent).to receive(:run).with("Hello", context: { a: 1 }) do |*_args, **_kwargs, &received_block|
       expect(received_block).to eq(block)
       "result"
