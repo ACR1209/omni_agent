@@ -11,7 +11,7 @@ tool schemas, and generation lifecycle callbacks.
 - Prompt composition from ERB files in `app/agents/<agent_name>/`
 - Agent callbacks (`before_generation`, `after_generation`)
 - Agent and tool tags to support filtering strategies
-- OpenAI provider integration out of the box
+- OpenAI provider integration out of the box, plus an Ollama provider for local models
 - Rake tasks and Rails generators for scaffolding
 
 ## Installation
@@ -26,6 +26,8 @@ Add the provider you're using to the Gemfile as well:
 ```ruby
 gem "openai"
 ```
+
+The `ollama` provider also depends on the `openai` gem — it talks to Ollama's OpenAI-compatible endpoint, so no separate gem is needed.
 
 Then run:
 
@@ -51,6 +53,14 @@ bundle exec rails generate omni_agent:agent ResearchAgent --model gpt-4.1-mini -
 
 ```dotenv
 OPENAI_ACCESS_TOKEN=your_api_key_here
+```
+
+To use Ollama instead, set `config.default_provider = :ollama` (see below) and, if needed, override its endpoint/model:
+
+```dotenv
+OLLAMA_HOST=http://localhost:11434   # defaults to this
+OLLAMA_MODEL=llama3.1                # defaults to this; pick a tool-calling-capable model
+OLLAMA_API_KEY=ollama                # unused by Ollama, but required by the openai client
 ```
 
 4. Implement your agent prompt and optional tools under:
@@ -144,7 +154,7 @@ ResearchAgent.with(user_id: 42).stream.run("What's new?") do |event|
 end
 ```
 
-`.stream` must come before the call (`.stream.run(...)`, not `.run(...).stream`) — without it, or without a block, behavior is unchanged and the same `Response` is returned either way. Only the `openai` and `mock` providers stream today. See [Streaming Responses](omniagent-docs/docs/agent/streaming.mdx) for the full event reference.
+`.stream` must come before the call (`.stream.run(...)`, not `.run(...).stream`) — without it, or without a block, behavior is unchanged and the same `Response` is returned either way. Only the `openai`, `ollama`, and `mock` providers stream today. See [Streaming Responses](omniagent-docs/docs/agent/streaming.mdx) for the full event reference.
 
 ## Evals
 
