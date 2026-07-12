@@ -29,6 +29,7 @@ module OmniAgent
           @properties = builder.properties
           @required = builder.required_fields
           @validators = builder.validators
+          @polymorphics = builder.polymorphics
         end
       end
 
@@ -50,6 +51,7 @@ module OmniAgent
         validate_enums!(filtered)
         validate_constraints!(filtered)
         run_custom_validators!(filtered)
+        resolve_polymorphics!(filtered)
 
         filtered
       end
@@ -125,6 +127,23 @@ module OmniAgent
 
           result = validator.call(kwargs[key])
           raise ArgumentError, "invalid value for #{name}" if result == false
+        end
+      end
+
+      def resolve_polymorphics!(kwargs)
+        (@polymorphics || {}).each do |name, group|
+          next unless group[:resolve]
+
+          type_field = group[:type_field]
+          id_field = group[:id_field]
+          next unless kwargs.key?(type_field) && kwargs.key?(id_field)
+
+          type_value = kwargs.delete(type_field)
+          id_value = kwargs.delete(id_field)
+
+          klass = Object.const_get(type_value.to_s)
+          record = klass.find(id_value)
+          kwargs[name.to_sym] = record
         end
       end
 

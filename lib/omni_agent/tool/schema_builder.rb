@@ -1,12 +1,13 @@
 module OmniAgent
   class Tool
     class SchemaBuilder
-      attr_reader :properties, :required_fields, :validators
+      attr_reader :properties, :required_fields, :validators, :polymorphics
 
       def initialize
         @properties = {}
         @required_fields = []
         @validators = {}
+        @polymorphics = {}
       end
 
       def string(name, description: nil, required: true, min_length: nil, max_length: nil, pattern: nil, format: nil, validate: nil)
@@ -98,6 +99,51 @@ module OmniAgent
         @validators[name] = validate if validate
       end
 
+      def polymorphic(name, types: nil, description: nil, id_type: "string", required: true, resolve: false, &block)
+        if resolve && (types.nil? || types.empty?)
+          raise ArgumentError, "polymorphic resolve: true requires types:"
+        end
+
+        type_values = types
+        type_description = description ? "#{description} (type)" : nil
+        id_type_value = id_type
+        id_description = description ? "#{description} (id)" : nil
+
+        if block_given?
+          field_builder = PolymorphicFieldBuilder.new
+          field_builder.instance_eval(&block)
+
+          type_values = field_builder.type_values || type_values
+          type_description = field_builder.type_description || type_description
+          id_type_value = field_builder.id_type || id_type_value
+          id_description = field_builder.id_description || id_description
+        end
+
+        type_field = :"#{name}_type"
+        id_field = :"#{name}_id"
+        id_json_type = id_type_value.to_s == "integer" ? "integer" : "string"
+
+        if type_values && !type_values.empty?
+          enum(type_field, values: type_values, description: type_description, required: required)
+        else
+          string(type_field, description: type_description, required: required)
+        end
+
+        if id_json_type == "integer"
+          integer(id_field, description: id_description, required: required)
+        else
+          string(id_field, description: id_description, required: required)
+        end
+
+        @polymorphics[name] = {
+          type_field: type_field,
+          id_field: id_field,
+          types: type_values,
+          id_type: id_json_type,
+          resolve: resolve
+        }
+      end
+
       private
 
       def enum_data_type(values)
@@ -129,6 +175,20 @@ module OmniAgent
         @properties[name] = property
         @required_fields << name.to_s if required
         @validators[name] = validate if validate
+      end
+
+      class PolymorphicFieldBuilder
+        attr_reader :type_values, :type_description, :id_type, :id_description
+
+        def type(values: nil, description: nil)
+          @type_values = values
+          @type_description = description
+        end
+
+        def id(type: "string", description: nil)
+          @id_type = type
+          @id_description = description
+        end
       end
     end
   end
