@@ -20,7 +20,7 @@ module OmniAgent
         @_omni_agent_wrapping_method = true
         alias_method alias_name, method_name
 
-        define_method(method_name) do |input = nil, context: {}, **context_keywords|
+        define_method(method_name) do |input = nil, context: {}, **context_keywords, &block|
           if input.nil? && context == {} && context_keywords.empty?
             run_alias_entrypoint_logic(alias_name)
           else
@@ -29,7 +29,7 @@ module OmniAgent
 
             run_input = run_alias_entrypoint_logic(alias_name, fallback_input: input)
 
-            run(run_input, context: merged_context, prompt_method: method_name)
+            run(run_input, context: merged_context, prompt_method: method_name, &block)
           end
         end
       ensure
@@ -78,8 +78,8 @@ module OmniAgent
         aliases = normalize_callbacks(:run_aliases, method_names)
 
         aliases.each do |method_name|
-          define_method(method_name) do |input, context: {}|
-            run(input, context: context, prompt_method: method_name)
+          define_method(method_name) do |input, context: {}, &block|
+            run(input, context: context, prompt_method: method_name, &block)
           end
         end
       end
@@ -212,7 +212,11 @@ module OmniAgent
       @default_context = context_override || {}
     end
 
-    def run(input, context: {}, prompt_method: nil)
+    def stream
+      OmniAgent::Streaming::Proxy.new(self)
+    end
+
+    def run(input, context: {}, prompt_method: nil, &stream)
       context = @default_context.merge(context || {})
       bind_context_instance_variables(context)
 
@@ -237,13 +241,14 @@ module OmniAgent
                 "Increase OmniAgent.configuration.max_tool_iterations if more tool calls are expected."
         end
 
-        response = provider.chat(messages: messages, tools: filtered_tools, **@chat_options)
+        response = provider.chat(messages: messages, tools: filtered_tools, stream: stream, **@chat_options)
 
         if response.content && !response.tool_calls?
           messages << { role: "assistant", content: response.content }
           set_after_generation_state(response: response, messages: messages, initial_messages_count: initial_messages_count)
           run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
           sync_context_from_instance_variables(context)
+          stream&.call(OmniAgent::Streaming::Event.done(response))
           return response
         end
 
@@ -265,6 +270,8 @@ module OmniAgent
             tool_instance = tool_class.new
             tool_instance.context = context if tool_instance.respond_to?(:context=)
 
+            stream&.call(OmniAgent::Streaming::Event.tool_call(name: tool_name, arguments: tool_args, id: tool_id))
+
             begin
               result = tool_instance.invoke(tool_args)
 
@@ -274,13 +281,16 @@ module OmniAgent
                 name: tool_name,
                 content: result.to_s
               }
+              stream&.call(OmniAgent::Streaming::Event.tool_result(name: tool_name, id: tool_id, content: result.to_s))
             rescue => e
+              error_content = "Error executing tool: #{e.message}"
               messages << {
                 role: "tool",
                 tool_call_id: tool_id,
                 name: tool_name,
-                content: "Error executing tool: #{e.message}"
+                content: error_content
               }
+              stream&.call(OmniAgent::Streaming::Event.tool_result(name: tool_name, id: tool_id, content: error_content, error: true))
             end
 
             should_stop_generation ||= tool_class.respond_to?(:stops_generation?) && tool_class.stops_generation?
@@ -299,6 +309,7 @@ module OmniAgent
           set_after_generation_state(response: response, messages: messages, initial_messages_count: initial_messages_count)
           run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
           sync_context_from_instance_variables(context)
+          stream&.call(OmniAgent::Streaming::Event.done(response))
           return response
         end
       end

@@ -9,7 +9,7 @@ module OmniAgent
         @model = model || default_model
       end
 
-      def chat(messages:, tools: [], **_options)
+      def chat(messages:, tools: [], stream: nil, **_options)
         raise NotImplementedError, "Providers must implement #chat"
       end
 

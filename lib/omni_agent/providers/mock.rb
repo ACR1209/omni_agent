@@ -3,8 +3,15 @@ module OmniAgent
     class Mock < Base
       LOREM_IPSUM = "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
 
-      def chat(messages:, tools: [], **_options)
+      def chat(messages:, tools: [], stream: nil, **_options)
         validate_messages!(messages, allowed_roles: %i[system user assistant tool])
+
+        if stream
+          LOREM_IPSUM.split(" ").each_with_index do |word, index|
+            chunk = index.zero? ? word : " #{word}"
+            stream.call(OmniAgent::Streaming::Event.text(chunk))
+          end
+        end
 
         OmniAgent::Providers::Response.new(
           content: LOREM_IPSUM,
