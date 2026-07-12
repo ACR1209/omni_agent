@@ -137,4 +137,79 @@ RSpec.describe OmniAgent::Tool::SchemaBuilder do
       expect(builder.properties[:settings][:required]).to eq([ "enabled" ])
     end
   end
+
+  describe "#enum" do
+    it "adds an enum field with string values" do
+      builder = described_class.new
+
+      builder.enum(:status, values: [ "active", "inactive" ], description: "User status")
+
+      expect(builder.properties).to eq(
+        status: {
+          type: "string",
+          enum: [ "active", "inactive" ],
+          description: "User status"
+        }
+      )
+      expect(builder.required_fields).to eq([ "status" ])
+    end
+
+    it "adds an enum field with integer values" do
+      builder = described_class.new
+
+      builder.enum(:level, values: [ 1, 2, 3 ], description: "Access level")
+
+      expect(builder.properties).to eq(
+        level: {
+          type: "integer",
+          enum: [ 1, 2, 3 ],
+          description: "Access level"
+        }
+      )
+      expect(builder.required_fields).to eq([ "level" ])
+    end
+
+    it "does not add field name to required_fields when required is false" do
+      builder = described_class.new
+
+      builder.enum(:priority, values: [ "low", "medium", "high" ], required: false)
+
+      expect(builder.required_fields).to eq([])
+    end
+
+    it "normalizes symbol values to strings" do
+      builder = described_class.new
+
+      builder.enum(:status, values: [ :active, :inactive ])
+
+      expect(builder.properties[:status]).to eq(
+        type: "string",
+        enum: [ "active", "inactive" ]
+      )
+    end
+
+    it "raises when values are mixed types" do
+      builder = described_class.new
+
+      expect { builder.enum(:status, values: [ "active", 1 ]) }.to raise_error(
+        ArgumentError, /enum values must all be the same type/
+      )
+    end
+
+    it "raises when values are empty" do
+      builder = described_class.new
+
+      expect { builder.enum(:status, values: []) }.to raise_error(
+        ArgumentError, /enum requires at least one value/
+      )
+    end
+
+    it "raises for unsupported value types" do
+      builder = described_class.new
+
+      expect { builder.enum(:status, values: [ nil ]) }.to raise_error(
+        ArgumentError, /unsupported enum value type/
+      )
+    end
+  end
 end
