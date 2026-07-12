@@ -129,6 +129,23 @@ class SupervisorAgent < OmniAgent::Agent
 end
 ```
 
+## Streaming
+
+Prefix any run entrypoint with `.stream` and pass a block to receive the response as it's generated instead of waiting for the full result:
+
+```ruby
+ResearchAgent.with(user_id: 42).stream.run("What's new?") do |event|
+	case event.type
+	when :text        then print event.text
+	when :tool_call   then puts "\n[using #{event.tool_name}...]"
+	when :tool_result then puts "[#{event.error? ? "failed" : "done"}]"
+	when :done        then puts "\n---"
+	end
+end
+```
+
+`.stream` must come before the call (`.stream.run(...)`, not `.run(...).stream`) — without it, or without a block, behavior is unchanged and the same `Response` is returned either way. Only the `openai` and `mock` providers stream today. See [Streaming Responses](omniagent-docs/docs/agent/streaming.mdx) for the full event reference.
+
 ## Evals
 
 `OmniAgent::Eval` lets you test agent quality: deterministic assertions (tool calls, output matching) and pluggable LLM-as-judge scoring.

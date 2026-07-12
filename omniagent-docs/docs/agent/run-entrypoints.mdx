@@ -68,3 +68,15 @@ ResearchAgent.with(
 * **Context kwargs** (e.g. `user_id: 42`) — merged into every `run` call made on the returned instance.
 * **`provider_override`** / **`model_override`** — temporarily swap the provider or model for this instance only.
 * **`options_override`** — merged into the chat options sent to the provider.
+
+## Streaming
+
+Any of the entrypoints above can stream by prefixing the call with `.stream` and passing a block:
+
+```ruby
+ResearchAgent.with(user_id: 42).stream.run("What's new?") do |event|
+  print event.text if event.text?
+end
+```
+
+See [Streaming Responses](./streaming) for the full event reference.
