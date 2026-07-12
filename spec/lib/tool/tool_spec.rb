@@ -204,6 +204,137 @@ RSpec.describe OmniAgent::Tool do
 
       expect(result).to eq(status: "active")
     end
+
+    it "raises when a string argument violates min_length/max_length" do
+      klass = Class.new(described_class) do
+        input do
+          string :name, min_length: 3, max_length: 5
+        end
+
+        def execute(**args); end
+      end
+
+      tool_instance = klass.new
+
+      expect { tool_instance.invoke("name" => "ab") }.to raise_error(
+        ArgumentError, /name must be at least 3 characters/
+      )
+      expect { tool_instance.invoke("name" => "abcdef") }.to raise_error(
+        ArgumentError, /name must be at most 5 characters/
+      )
+    end
+
+    it "raises when a string argument does not match pattern" do
+      klass = Class.new(described_class) do
+        input do
+          string :slug, pattern: /\A[a-z]+\z/
+        end
+
+        def execute(**args); end
+      end
+
+      tool_instance = klass.new
+
+      expect { tool_instance.invoke("slug" => "Not_Valid") }.to raise_error(
+        ArgumentError, /slug does not match required pattern/
+      )
+    end
+
+    it "raises when an integer argument is outside min/max" do
+      klass = Class.new(described_class) do
+        input do
+          integer :level, min: 1, max: 5
+        end
+
+        def execute(**args); end
+      end
+
+      tool_instance = klass.new
+
+      expect { tool_instance.invoke("level" => 0) }.to raise_error(ArgumentError, /level must be >= 1/)
+      expect { tool_instance.invoke("level" => 6) }.to raise_error(ArgumentError, /level must be <= 5/)
+    end
+
+    it "raises when an array argument violates min_items/max_items" do
+      klass = Class.new(described_class) do
+        input do
+          array :tags, items_type: "string", min_items: 1, max_items: 2
+        end
+
+        def execute(**args); end
+      end
+
+      tool_instance = klass.new
+
+      expect { tool_instance.invoke("tags" => []) }.to raise_error(ArgumentError, /tags must have at least 1 items/)
+      expect { tool_instance.invoke("tags" => %w[a b c]) }.to raise_error(ArgumentError, /tags must have at most 2 items/)
+    end
+
+    it "passes valid constrained arguments through to #execute" do
+      klass = Class.new(described_class) do
+        input do
+          integer :level, min: 1, max: 5
+        end
+
+        attr_reader :received
+
+        def execute(**args)
+          @received = args
+        end
+      end
+
+      tool_instance = klass.new
+      result = tool_instance.invoke("level" => 3)
+
+      expect(result).to eq(level: 3)
+    end
+
+    it "runs a custom validate: proc and raises its own message on failure" do
+      klass = Class.new(described_class) do
+        input do
+          string :slug, validate: ->(v) { v == v.downcase or raise ArgumentError, "slug must be lowercase" }
+        end
+
+        def execute(**args); end
+      end
+
+      tool_instance = klass.new
+
+      expect { tool_instance.invoke("slug" => "Bad-Slug") }.to raise_error(ArgumentError, "slug must be lowercase")
+    end
+
+    it "raises a generic error when a custom validate: proc returns false" do
+      klass = Class.new(described_class) do
+        input do
+          string :slug, validate: ->(v) { v == "ok" }
+        end
+
+        def execute(**args); end
+      end
+
+      tool_instance = klass.new
+
+      expect { tool_instance.invoke("slug" => "nope") }.to raise_error(ArgumentError, /invalid value for slug/)
+    end
+
+    it "passes when a custom validate: proc returns true" do
+      klass = Class.new(described_class) do
+        input do
+          string :slug, validate: ->(v) { v == "ok" }
+        end
+
+        attr_reader :received
+
+        def execute(**args)
+          @received = args
+        end
+      end
+
+      tool_instance = klass.new
+      result = tool_instance.invoke("slug" => "ok")
+
+      expect(result).to eq(slug: "ok")
+    end
   end
 
   describe ".stops_generation" do

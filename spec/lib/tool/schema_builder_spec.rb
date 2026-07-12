@@ -212,4 +212,81 @@ RSpec.describe OmniAgent::Tool::SchemaBuilder do
       )
     end
   end
+
+  describe "constraint kwargs" do
+    it "maps string constraints to JSON Schema keywords" do
+      builder = described_class.new
+
+      builder.string(:name, min_length: 3, max_length: 40, pattern: /\A[a-z]+\z/, format: "email")
+
+      expect(builder.properties[:name]).to eq(
+        type: "string",
+        minLength: 3,
+        maxLength: 40,
+        pattern: "\\A[a-z]+\\z",
+        format: "email"
+      )
+    end
+
+    it "maps integer min/max to minimum/maximum" do
+      builder = described_class.new
+
+      builder.integer(:level, min: 1, max: 5)
+
+      expect(builder.properties[:level]).to eq(type: "integer", minimum: 1, maximum: 5)
+    end
+
+    it "adds a number field with float constraints" do
+      builder = described_class.new
+
+      builder.number(:ratio, min: 0.0, max: 1.0)
+
+      expect(builder.properties[:ratio]).to eq(type: "number", minimum: 0.0, maximum: 1.0)
+    end
+
+    it "maps array min_items/max_items to minItems/maxItems" do
+      builder = described_class.new
+
+      builder.array(:tags, items_type: "string", min_items: 1, max_items: 10)
+
+      expect(builder.properties[:tags]).to eq(
+        type: "array",
+        items: { type: "string" },
+        minItems: 1,
+        maxItems: 10
+      )
+    end
+
+    it "omits constraint keys when not given" do
+      builder = described_class.new
+
+      builder.string(:name)
+
+      expect(builder.properties[:name]).to eq(type: "string")
+    end
+  end
+
+  describe "validate: procs" do
+    it "captures a validator without leaking it into properties" do
+      builder = described_class.new
+      validator = ->(v) { v == v.downcase }
+
+      builder.string(:slug, validate: validator)
+
+      expect(builder.validators[:slug]).to eq(validator)
+      expect(builder.properties[:slug]).to eq(type: "string")
+    end
+
+    it "captures validators for enum and hash fields" do
+      builder = described_class.new
+      enum_validator = ->(v) { true }
+      hash_validator = ->(v) { true }
+
+      builder.enum(:status, values: [ "active" ], validate: enum_validator)
+      builder.hash(:filters, validate: hash_validator)
+
+      expect(builder.validators[:status]).to eq(enum_validator)
+      expect(builder.validators[:filters]).to eq(hash_validator)
+    end
+  end
 end
