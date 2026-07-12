@@ -52,10 +52,14 @@ module OmniAgent
 
         parse_response(response, payload)
       rescue => e
-        raise OmniAgent::Error, "Error during OpenAI chat: #{e.message}"
+        raise OmniAgent::Error, "Error during #{provider_label} chat: #{e.message}"
       end
 
       protected
+
+      def provider_label
+        "OpenAI"
+      end
 
       def retryable_error?(error)
         defined?(::OpenAI::Errors) &&
