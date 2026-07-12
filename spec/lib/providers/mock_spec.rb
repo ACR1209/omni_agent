@@ -36,6 +36,25 @@ RSpec.describe OmniAgent::Providers::Mock do
         provider.chat(messages: [ { role: "invalid", content: "Hello" } ])
       }.to raise_error(OmniAgent::Error, /invalid message role/)
     end
+
+    it "emits text events for each word when streaming" do
+      provider = described_class.new
+      events = []
+
+      response = provider.chat(messages: [ { role: "user", content: "Hello" } ], stream: ->(event) { events << event })
+
+      expect(events).not_to be_empty
+      expect(events).to all(be_a(OmniAgent::Streaming::Event))
+      expect(events).to all(satisfy(&:text?))
+      expect(events.map(&:text).join).to eq("Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
+      expect(response.content).to eq("Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
+    end
+
+    it "does not stream when no block is given" do
+      provider = described_class.new
+
+      expect { provider.chat(messages: [ { role: "user", content: "Hello" } ]) }.not_to raise_error
+    end
   end
 
   describe "configuration" do

@@ -92,6 +92,75 @@ RSpec.describe OmniAgent::Providers::OpenAI do
     expect(result.raw_response["usage"]).to eq({ "prompt_tokens" => 10, "completion_tokens" => 4, "total_tokens" => 14 })
   end
 
+  describe "streaming" do
+    it "yields text delta events and returns the final parsed response" do
+      messages = [ { role: "user", content: "Hello" } ]
+
+      delta_events = [
+        OpenAI::Helpers::Streaming::ChatContentDeltaEvent.new(delta: "Hi", snapshot: "Hi"),
+        OpenAI::Helpers::Streaming::ChatContentDeltaEvent.new(delta: " there", snapshot: "Hi there")
+      ]
+      final_completion = { "choices" => [ { "message" => { "content" => "Hi there" } } ] }
+
+      chat_stream = instance_double(OpenAI::Helpers::Streaming::ChatCompletionStream)
+      allow(chat_stream).to receive(:each) { |&block| delta_events.each(&block) }
+      allow(chat_stream).to receive(:get_final_completion).and_return(final_completion)
+
+      completions = double("completions")
+      chat = double("chat", completions: completions)
+      client_instance = instance_double(OpenAI::Client, chat: chat)
+      allow(OpenAI::Client).to receive(:new)
+        .with(api_key: "token")
+        .and_return(client_instance)
+      expect(completions).to receive(:stream)
+        .with(model: "gpt-test", messages: messages)
+        .and_return(chat_stream)
+
+      events = []
+      result = described_class.new(api_key: "token", model: "gpt-test")
+        .chat(messages: messages, stream: ->(event) { events << event })
+
+      expect(events.map(&:text)).to eq([ "Hi", " there" ])
+      expect(events).to all(satisfy(&:text?))
+      expect(result.content).to eq("Hi there")
+    end
+
+    it "ignores non-content-delta events, such as tool call argument deltas" do
+      messages = [ { role: "user", content: "Weather?" } ]
+
+      stream_events = [
+        OpenAI::Helpers::Streaming::ChatFunctionToolCallArgumentsDeltaEvent.new(
+          name: "GetWeather", index: 0, arguments_delta: "{\"city", arguments: "{\"city", parsed: nil
+        ),
+        OpenAI::Helpers::Streaming::ChatContentDeltaEvent.new(delta: "Hi", snapshot: "Hi")
+      ]
+      final_completion = {
+        "choices" => [
+          { "message" => { "content" => nil, "tool_calls" => [ { "id" => "call_1", "function" => { "name" => "GetWeather", "arguments" => "{\"city\":\"Paris\"}" } } ] } }
+        ]
+      }
+
+      chat_stream = instance_double(OpenAI::Helpers::Streaming::ChatCompletionStream)
+      allow(chat_stream).to receive(:each) { |&block| stream_events.each(&block) }
+      allow(chat_stream).to receive(:get_final_completion).and_return(final_completion)
+
+      completions = double("completions")
+      chat = double("chat", completions: completions)
+      client_instance = instance_double(OpenAI::Client, chat: chat)
+      allow(OpenAI::Client).to receive(:new)
+        .with(api_key: "token")
+        .and_return(client_instance)
+      allow(completions).to receive(:stream).and_return(chat_stream)
+
+      events = []
+      result = described_class.new(api_key: "token", model: "gpt-test")
+        .chat(messages: messages, stream: ->(event) { events << event })
+
+      expect(events.map(&:text)).to eq([ "Hi" ])
+      expect(result.tool_calls).to eq([ { id: "call_1", name: "GetWeather", arguments: { "city" => "Paris" } } ])
+    end
+  end
+
   describe "retry behavior" do
     before { allow_any_instance_of(described_class).to receive(:sleep) }
 

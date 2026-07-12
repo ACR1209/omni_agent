@@ -23,7 +23,7 @@ RSpec.describe OmniAgent::Agent do
         @model = model
       end
 
-      def chat(messages:, tools: [], **options)
+      def chat(messages:, tools: [], stream: nil, **options)
         @last_chat_options = options
         OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
       end
@@ -1128,6 +1128,142 @@ RSpec.describe OmniAgent::Agent do
       ensure
         Thread.current[:omni_agent_delegation_depth] = nil
       end
+    end
+  end
+
+  describe "streaming" do
+    it "does not affect run when no block is given" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      agent_class = Class.new(described_class)
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      result = agent.run("Hello")
+
+      expect(result).to be_a(OmniAgent::Providers::Response)
+      expect(result.answer).to eq("ok")
+    end
+
+    it "forwards a block from run through to provider.chat as the stream sink" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      agent_class = Class.new(described_class)
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      captured_stream = :not_set
+      allow(agent.provider).to receive(:chat) do |messages:, tools: [], stream: nil, **_options|
+        captured_stream = stream
+        OmniAgent::Providers::Response.new(content: "ok", raw_response: {}, tool_calls: [])
+      end
+
+      sink = ->(event) {}
+      agent.run("Hello", &sink)
+
+      expect(captured_stream).to eq(sink)
+    end
+
+    it "emits a done event with the final response when generation completes" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      agent_class = Class.new(described_class)
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      final_response = OmniAgent::Providers::Response.new(content: "done", raw_response: {}, tool_calls: [])
+      allow(agent.provider).to receive(:chat).and_return(final_response)
+
+      events = []
+      result = agent.run("Hello") { |event| events << event }
+
+      expect(result).to eq(final_response)
+      expect(events.last).to be_a(OmniAgent::Streaming::Event)
+      expect(events.last.done?).to be(true)
+      expect(events.last.response).to eq(final_response)
+    end
+
+    it "emits tool_call and tool_result events around tool execution" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      stub_const("StreamingTestTool", Class.new(OmniAgent::Tool) do
+        def execute(**_args)
+          "tool output"
+        end
+      end)
+
+      agent_class = Class.new(described_class)
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([ StreamingTestTool ])
+
+      response_with_tool_call = OmniAgent::Providers::Response.new(
+        content: nil,
+        raw_response: {},
+        tool_calls: [ { id: "call_1", name: "StreamingTestTool", arguments: {} } ]
+      )
+      final_response = OmniAgent::Providers::Response.new(content: "done", raw_response: {}, tool_calls: [])
+
+      allow(agent.provider).to receive(:chat).and_return(response_with_tool_call, final_response)
+
+      events = []
+      agent.run("Hello") { |event| events << event }
+
+      expect(events.map(&:type)).to eq([ :tool_call, :tool_result, :done ])
+      expect(events[0].tool_name).to eq("StreamingTestTool")
+      expect(events[1].content).to eq("tool output")
+      expect(events[1].error?).to be(false)
+    end
+
+    it "emits an errored tool_result event when a tool raises" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      stub_const("FailingStreamingTool", Class.new(OmniAgent::Tool) do
+        def execute(**_args)
+          raise "boom"
+        end
+      end)
+
+      agent_class = Class.new(described_class)
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([ FailingStreamingTool ])
+
+      response_with_tool_call = OmniAgent::Providers::Response.new(
+        content: nil,
+        raw_response: {},
+        tool_calls: [ { id: "call_1", name: "FailingStreamingTool", arguments: {} } ]
+      )
+      final_response = OmniAgent::Providers::Response.new(content: "done", raw_response: {}, tool_calls: [])
+
+      allow(agent.provider).to receive(:chat).and_return(response_with_tool_call, final_response)
+
+      events = []
+      agent.run("Hello") { |event| events << event }
+
+      tool_result_event = events.find(&:tool_result?)
+      expect(tool_result_event.error?).to be(true)
+      expect(tool_result_event.content).to match(/Error executing tool: boom/)
+    end
+
+    it "#stream returns a Streaming::Proxy that forwards the block to a run alias" do
+      OmniAgent.configure { |config| config.default_provider = :test_provider }
+
+      agent_class = Class.new(described_class) do
+        run_aliases :ask
+      end
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      final_response = OmniAgent::Providers::Response.new(content: "done", raw_response: {}, tool_calls: [])
+      allow(agent.provider).to receive(:chat).and_return(final_response)
+
+      expect(agent.stream).to be_a(OmniAgent::Streaming::Proxy)
+
+      events = []
+      result = agent.stream.ask("Hello") { |event| events << event }
+
+      expect(result).to eq(final_response)
+      expect(events).not_to be_empty
+      expect(events.last.done?).to be(true)
     end
   end
 end
