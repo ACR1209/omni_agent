@@ -335,6 +335,90 @@ RSpec.describe OmniAgent::Tool do
 
       expect(result).to eq(slug: "ok")
     end
+
+    it "passes both fields through for a shallow (non-resolving) polymorphic field" do
+      klass = Class.new(described_class) do
+        input do
+          polymorphic :actor, types: [ "User", "Admin" ]
+        end
+
+        attr_reader :received
+
+        def execute(**args)
+          @received = args
+        end
+      end
+
+      tool_instance = klass.new
+      result = tool_instance.invoke("actor_type" => "User", "actor_id" => "42")
+
+      expect(result).to eq(actor_type: "User", actor_id: "42")
+    end
+
+    it "resolves a polymorphic field into a fetched record when resolve: true" do
+      user_class = Class.new do
+        def self.name
+          "User"
+        end
+
+        def self.find(id)
+          new(id)
+        end
+
+        attr_reader :id
+
+        def initialize(id)
+          @id = id
+        end
+      end
+      stub_const("User", user_class)
+
+      klass = Class.new(described_class) do
+        input do
+          polymorphic :actor, types: [ "User" ], resolve: true
+        end
+
+        attr_reader :received
+
+        def execute(**args)
+          @received = args
+        end
+      end
+
+      tool_instance = klass.new
+      result = tool_instance.invoke("actor_type" => "User", "actor_id" => "7")
+
+      expect(result.keys).to eq([ :actor ])
+      expect(result[:actor]).to be_a(User)
+      expect(result[:actor].id).to eq("7")
+    end
+
+    it "propagates a not-found error from a resolving polymorphic field" do
+      user_class = Class.new do
+        def self.name
+          "User"
+        end
+
+        def self.find(_id)
+          raise ArgumentError, "record not found"
+        end
+      end
+      stub_const("User", user_class)
+
+      klass = Class.new(described_class) do
+        input do
+          polymorphic :actor, types: [ "User" ], resolve: true
+        end
+
+        def execute(**args); end
+      end
+
+      tool_instance = klass.new
+
+      expect { tool_instance.invoke("actor_type" => "User", "actor_id" => "missing") }.to raise_error(
+        ArgumentError, "record not found"
+      )
+    end
   end
 
   describe ".stops_generation" do

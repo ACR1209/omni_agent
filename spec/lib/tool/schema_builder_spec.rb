@@ -289,4 +289,88 @@ RSpec.describe OmniAgent::Tool::SchemaBuilder do
       expect(builder.validators[:filters]).to eq(hash_validator)
     end
   end
+
+  describe "#polymorphic" do
+    it "expands into an enum type field and an id field, both required by default" do
+      builder = described_class.new
+
+      builder.polymorphic(:actor, types: [ "User", "Admin" ], description: "The actor")
+
+      expect(builder.properties[:actor_type]).to eq(
+        type: "string",
+        enum: [ "User", "Admin" ],
+        description: "The actor (type)"
+      )
+      expect(builder.properties[:actor_id]).to eq(
+        type: "string",
+        description: "The actor (id)"
+      )
+      expect(builder.required_fields).to eq([ "actor_type", "actor_id" ])
+    end
+
+    it "supports id_type: :integer" do
+      builder = described_class.new
+
+      builder.polymorphic(:actor, types: [ "User" ], id_type: :integer)
+
+      expect(builder.properties[:actor_id][:type]).to eq("integer")
+    end
+
+    it "does not add fields to required_fields when required is false" do
+      builder = described_class.new
+
+      builder.polymorphic(:actor, types: [ "User" ], required: false)
+
+      expect(builder.required_fields).to eq([])
+    end
+
+    it "supports the block form with per-field descriptions" do
+      builder = described_class.new
+
+      builder.polymorphic(:actor) do
+        type values: [ "User", "Admin" ], description: "Class name"
+        id type: :integer, description: "Primary key"
+      end
+
+      expect(builder.properties[:actor_type]).to eq(
+        type: "string",
+        enum: [ "User", "Admin" ],
+        description: "Class name"
+      )
+      expect(builder.properties[:actor_id]).to eq(
+        type: "integer",
+        description: "Primary key"
+      )
+    end
+
+    it "falls back to a plain string type field when no types: whitelist is given" do
+      builder = described_class.new
+
+      builder.polymorphic(:actor)
+
+      expect(builder.properties[:actor_type]).to eq(type: "string")
+    end
+
+    it "records group metadata without leaking it into properties" do
+      builder = described_class.new
+
+      builder.polymorphic(:actor, types: [ "User" ], resolve: true)
+
+      expect(builder.polymorphics[:actor]).to eq(
+        type_field: :actor_type,
+        id_field: :actor_id,
+        types: [ "User" ],
+        id_type: "string",
+        resolve: true
+      )
+    end
+
+    it "raises when resolve: true is given without types:" do
+      builder = described_class.new
+
+      expect { builder.polymorphic(:actor, resolve: true) }.to raise_error(
+        ArgumentError, /polymorphic resolve: true requires types:/
+      )
+    end
+  end
 end
