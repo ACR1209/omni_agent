@@ -58,6 +58,6 @@ end
 
 ## Provider Support
 
-Streaming is implemented per-provider. The built-in `openai` provider streams via the `openai` gem's `client.chat.completions.stream` and emits `:text` events for content deltas; tool-call arguments are not streamed incrementally (a `:tool_call` event fires once the full round finishes and arguments are fully parsed — a tool can't be invoked from a partial JSON fragment). The `mock` provider also supports streaming, splitting its canned response into words, useful for testing UI code without a network call.
+Streaming is implemented per-provider. The built-in `openai` provider streams via the `openai` gem's `client.chat.completions.stream` and emits `:text` events for content deltas; tool-call arguments are not streamed incrementally (a `:tool_call` event fires once the full round finishes and arguments are fully parsed — a tool can't be invoked from a partial JSON fragment). The `ollama` provider streams the same way, since it subclasses `openai` and only swaps the client's `base_url` and defaults. The `mock` provider also supports streaming, splitting its canned response into words, useful for testing UI code without a network call.
 
 Retries via `with_retries` wrap stream *creation* only — a connection drop mid-stream is not retried.

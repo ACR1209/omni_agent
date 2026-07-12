@@ -46,7 +46,12 @@ Providers are resolved from a registry at runtime:
 
 ```ruby
 OmniAgent::Providers.registry
-# => { openai: OmniAgent::Providers::OpenAI, mock: OmniAgent::Providers::Mock }
+# => {
+#      openai: OmniAgent::Providers::OpenAI,
+#      ollama: OmniAgent::Providers::Ollama,
+#      mock: OmniAgent::Providers::Mock,
+#      mock_judge: OmniAgent::Providers::MockJudge
+#    }
 ```
 
-The `:mock` provider is useful for tests — it returns a canned response without making network calls.
+See [Supported Providers](/docs/supported-providers) for provider-specific setup. The `:mock` provider is useful for tests — it returns a canned response without making network calls.

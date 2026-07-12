@@ -21,6 +21,12 @@ You can also change only the provider and let it use that provider's default mod
 provider :openai
 ```
 
+To run against a local model via [Ollama](/docs/supported-providers#ollama) instead:
+
+```ruby
+provider :ollama, model: 'llama3.1'
+```
+
 ## Change Only the Model
 
 Use `use_model` when you want to keep the current `default_provider` and only override the model.
