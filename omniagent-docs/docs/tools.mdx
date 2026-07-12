@@ -42,6 +42,7 @@ Use `input do ... end` to declare typed parameters:
 input do
   string :city, description: "City name"
   integer :days, description: "Forecast length", required: false
+  number :confidence, min: 0.0, max: 1.0, required: false
   boolean :metric, required: false
   array :tags, items_type: "string"
   hash :coordinates do
@@ -56,14 +57,75 @@ Supported field types:
 
 * **`string`**
 * **`integer`**
+* **`number`** — floating-point values
 * **`boolean`**
 * **`array`** — pass `items_type:` for primitive items, or a block for an array of objects
 * **`hash`** — pass a block to declare nested properties, or omit it for a free-form object
 * **`enum`** — pass `values:` as a non-empty array of same-typed values (all strings, all integers, all floats, or all booleans). Mixed-type or empty value sets raise `ArgumentError` at schema-definition time.
+* **`polymorphic`** — see [Polymorphic References](#polymorphic-references) below.
 
 All fields are `required: true` by default. Pass `required: false` to make a field optional.
 
-`invoke` validates arguments against the schema before calling `#execute`: a missing required field or an enum value outside `values:` raises `ArgumentError` rather than reaching your tool code.
+`invoke` validates arguments against the schema before calling `#execute`: a missing required field, an enum value outside `values:`, a constraint violation, or a failing custom validator all raise `ArgumentError` rather than reaching your tool code.
+
+## Validations
+
+`string`, `integer`, `number`, and `array` accept optional constraint kwargs. These are emitted as standard JSON Schema keywords (so the model sees them too) and enforced again at runtime by `invoke`:
+
+```ruby
+input do
+  string  :name,  min_length: 3, max_length: 40, pattern: /\A[a-z]+\z/i, format: "email"
+  integer :level, min: 1, max: 5
+  number  :ratio, min: 0.0, max: 1.0
+  array   :tags,  items_type: "string", min_items: 1, max_items: 10
+end
+```
+
+| Kwarg | Applies to | JSON Schema keyword |
+|---|---|---|
+| `min_length:` / `max_length:` | `string` | `minLength` / `maxLength` |
+| `pattern:` (`Regexp` or `String`) | `string` | `pattern` |
+| `format:` | `string` | `format` |
+| `min:` / `max:` | `integer`, `number` | `minimum` / `maximum` |
+| `min_items:` / `max_items:` | `array` | `minItems` / `maxItems` |
+
+Every field type also accepts `validate:`, a `Proc` for arbitrary runtime rules. It is never serialized into the schema sent to the provider — it only runs locally in `invoke`. Return `false` to raise a generic `ArgumentError`, or raise your own `ArgumentError` for a custom message:
+
+```ruby
+input do
+  string :slug, validate: ->(v) { v == v.downcase or raise ArgumentError, "slug must be lowercase" }
+end
+```
+
+## Polymorphic References
+
+`polymorphic :name` declares a Rails-style polymorphic reference. It expands into two ordinary schema fields, `name_type` and `name_id`:
+
+```ruby
+input do
+  polymorphic :actor,
+    types: [ "User", "Admin" ],   # allowed actor_type values -> becomes an enum
+    description: "The actor performing the action",
+    id_type: :integer,            # actor_id schema type, default "string"
+    resolve: true                 # fetch the actual record instead of raw type/id
+end
+```
+
+Individual descriptions for each sub-field can be set with the block form instead of a shared `description:`:
+
+```ruby
+polymorphic :actor, types: [ "User", "Admin" ], resolve: true do
+  type values: [ "User", "Admin" ], description: "The actor's class name"
+  id   type: :integer,             description: "The actor's primary key"
+end
+```
+
+Two runtime modes:
+
+* **`resolve: false` (default)** — `#execute` receives `actor_type:` and `actor_id:` as separate keyword arguments. `actor_type` is validated against `types:` like any other enum.
+* **`resolve: true`** — requires `types:`. At runtime, `invoke` looks up the class named by `actor_type` (restricted to the `types:` whitelist — never an arbitrary string) via `Object.const_get`, calls `.find(actor_id)` on it, and passes the result as a single `actor:` keyword argument instead. A record that isn't found raises `ArgumentError`, which the agent loop surfaces back to the model as a retryable tool error, just like an invalid enum value.
+
+`resolve: true` without `types:` raises `ArgumentError` at schema-definition time.
 
 ## Stopping Generation Early
 
