@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.9](https://github.com/ACR1209/omni_agent/compare/omni_agent/v0.1.8...omni_agent/v0.1.9) (2026-07-12)
+
+
+### Features
+
+* **agent:** support streaming responses via stream sink ([7cf1fba](https://github.com/ACR1209/omni_agent/commit/7cf1fba4fa378c5cee7f464354f760506a0ff513))
+* **docs:** add enum type for temperature unit in input schema ([d992658](https://github.com/ACR1209/omni_agent/commit/d99265836307ce8f863b060eff73c7acdbc8d2ff))
+* **providers:** add Ollama provider via OpenAI-compat endpoint ([4ae92ad](https://github.com/ACR1209/omni_agent/commit/4ae92ad0f549119b43c2e8a7381f4f7245aa2f68))
+* **tool:** add optional constraint validations and custom validate procs ([db8371a](https://github.com/ACR1209/omni_agent/commit/db8371a189f710e812c3c3ce15f200df1ba94902))
+* **tool:** add polymorphic reference datatype ([1686bbb](https://github.com/ACR1209/omni_agent/commit/1686bbbf41932622a5537c335da8c41c68a73f73))
+* **tool:** infer and validate enum value types in schema builder ([ceb3e78](https://github.com/ACR1209/omni_agent/commit/ceb3e780498caa1158e9fc8af3eb6e9b95c33ddb))
+* **tool:** validate required and enum arguments on invoke ([543c6e0](https://github.com/ACR1209/omni_agent/commit/543c6e08f9c394b84c73bc5957aff7058e0fab19))
+
+
+### Bug Fixes
+
+* **lint:** add space inside empty block braces ([9116b3f](https://github.com/ACR1209/omni_agent/commit/9116b3ff82e9fab9824347515b4c1cd40a40785e))
+* **spec:** redact OpenAI API key from recorded VCR cassettes ([53cecd5](https://github.com/ACR1209/omni_agent/commit/53cecd540b6dd52ddc5bf3da0550836fbfcfab88))
+
 ## [0.1.8](https://github.com/ACR1209/omni_agent/compare/omni_agent/v0.1.7...omni_agent/v0.1.8) (2026-07-07)
 
 
