@@ -152,6 +152,58 @@ RSpec.describe OmniAgent::Tool do
       expect(result).to eq(query: "ruby")
       expect(tool_instance.received).to eq(query: "ruby")
     end
+
+    it "raises when a required argument is missing" do
+      klass = Class.new(described_class) do
+        input do
+          string :query
+        end
+
+        def execute(**args); end
+      end
+
+      tool_instance = klass.new
+
+      expect { tool_instance.invoke({}) }.to raise_error(
+        ArgumentError, /missing required argument\(s\): query/
+      )
+    end
+
+    it "raises when an enum argument has an invalid value" do
+      klass = Class.new(described_class) do
+        input do
+          enum :status, values: [ "active", "inactive" ]
+        end
+
+        def execute(**args); end
+      end
+
+      tool_instance = klass.new
+
+      expect { tool_instance.invoke("status" => "unknown") }.to raise_error(
+        ArgumentError, /invalid value for status/
+      )
+    end
+
+    it "accepts a valid enum value" do
+      klass = Class.new(described_class) do
+        input do
+          enum :status, values: [ "active", "inactive" ]
+        end
+
+        attr_reader :received
+
+        def execute(**args)
+          @received = args
+        end
+      end
+
+      tool_instance = klass.new
+
+      result = tool_instance.invoke("status" => "active")
+
+      expect(result).to eq(status: "active")
+    end
   end
 
   describe ".stops_generation" do
