@@ -43,7 +43,12 @@ module OmniAgent
       def parse_arguments(arguments_hash)
         kwargs = arguments_hash.transform_keys(&:to_sym)
         valid_keys = (@properties || {}).keys.map(&:to_sym)
-        kwargs.slice(*valid_keys)
+        filtered = kwargs.slice(*valid_keys)
+
+        validate_required!(filtered)
+        validate_enums!(filtered)
+
+        filtered
       end
 
       def stops_generation(value = true)
@@ -55,6 +60,27 @@ module OmniAgent
       end
 
       private
+
+      def validate_required!(kwargs)
+        missing = (@required || []).map(&:to_sym) - kwargs.keys
+        return if missing.empty?
+
+        raise ArgumentError, "missing required argument(s): #{missing.join(', ')}"
+      end
+
+      def validate_enums!(kwargs)
+        (@properties || {}).each do |name, property|
+          allowed_values = property[:enum]
+          next unless allowed_values
+
+          key = name.to_sym
+          next unless kwargs.key?(key)
+
+          unless allowed_values.include?(kwargs[key])
+            raise ArgumentError, "invalid value for #{name}: #{kwargs[key].inspect} (must be one of: #{allowed_values.join(', ')})"
+          end
+        end
+      end
 
       def normalize_tags(tag_names)
         raise ArgumentError, "tags requires at least one tag" if tag_names.empty?
