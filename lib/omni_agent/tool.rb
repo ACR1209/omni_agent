@@ -28,6 +28,7 @@ module OmniAgent
 
           @properties = builder.properties
           @required = builder.required_fields
+          @validators = builder.validators
         end
       end
 
@@ -47,6 +48,8 @@ module OmniAgent
 
         validate_required!(filtered)
         validate_enums!(filtered)
+        validate_constraints!(filtered)
+        run_custom_validators!(filtered)
 
         filtered
       end
@@ -79,6 +82,49 @@ module OmniAgent
           unless allowed_values.include?(kwargs[key])
             raise ArgumentError, "invalid value for #{name}: #{kwargs[key].inspect} (must be one of: #{allowed_values.join(', ')})"
           end
+        end
+      end
+
+      def validate_constraints!(kwargs)
+        (@properties || {}).each do |name, property|
+          key = name.to_sym
+          next unless kwargs.key?(key)
+
+          check_constraints!(name, property, kwargs[key])
+        end
+      end
+
+      def check_constraints!(name, property, value)
+        if property[:minLength] && value.is_a?(String) && value.length < property[:minLength]
+          raise ArgumentError, "#{name} must be at least #{property[:minLength]} characters"
+        end
+        if property[:maxLength] && value.is_a?(String) && value.length > property[:maxLength]
+          raise ArgumentError, "#{name} must be at most #{property[:maxLength]} characters"
+        end
+        if property[:pattern] && value.is_a?(String) && !value.match?(Regexp.new(property[:pattern]))
+          raise ArgumentError, "#{name} does not match required pattern #{property[:pattern]}"
+        end
+        if property[:minimum] && value.is_a?(Numeric) && value < property[:minimum]
+          raise ArgumentError, "#{name} must be >= #{property[:minimum]}"
+        end
+        if property[:maximum] && value.is_a?(Numeric) && value > property[:maximum]
+          raise ArgumentError, "#{name} must be <= #{property[:maximum]}"
+        end
+        if property[:minItems] && value.is_a?(Array) && value.length < property[:minItems]
+          raise ArgumentError, "#{name} must have at least #{property[:minItems]} items"
+        end
+        if property[:maxItems] && value.is_a?(Array) && value.length > property[:maxItems]
+          raise ArgumentError, "#{name} must have at most #{property[:maxItems]} items"
+        end
+      end
+
+      def run_custom_validators!(kwargs)
+        (@validators || {}).each do |name, validator|
+          key = name.to_sym
+          next unless kwargs.key?(key)
+
+          result = validator.call(kwargs[key])
+          raise ArgumentError, "invalid value for #{name}" if result == false
         end
       end
 
