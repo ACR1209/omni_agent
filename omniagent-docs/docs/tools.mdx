@@ -48,6 +48,7 @@ input do
     string :lat
     string :lng
   end
+  enum :unit, values: [ "celsius", "fahrenheit" ], description: "Temperature unit"
 end
 ```
 
@@ -58,8 +59,11 @@ Supported field types:
 * **`boolean`**
 * **`array`** — pass `items_type:` for primitive items, or a block for an array of objects
 * **`hash`** — pass a block to declare nested properties, or omit it for a free-form object
+* **`enum`** — pass `values:` as a non-empty array of same-typed values (all strings, all integers, all floats, or all booleans). Mixed-type or empty value sets raise `ArgumentError` at schema-definition time.
 
 All fields are `required: true` by default. Pass `required: false` to make a field optional.
+
+`invoke` validates arguments against the schema before calling `#execute`: a missing required field or an enum value outside `values:` raises `ArgumentError` rather than reaching your tool code.
 
 ## Stopping Generation Early
 
