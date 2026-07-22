@@ -26,5 +26,5 @@ group :development, :test do
   gem "vcr"
   gem "webmock"
   gem "dotenv-rails"
-  gem "openai", "~> 0.68.0"
+  gem "openai", "~> 0.71.0"
 end
