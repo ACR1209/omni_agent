@@ -17,7 +17,7 @@ gem "rubocop-rails-omakase", require: false
 
 gem "ruby-lsp", "~> 0.26.10", groups: [ :development, :test ]
 
-gem "rubocop", "~> 1.88", groups: [ :development, :test ]
+gem "rubocop", "~> 1.89", groups: [ :development, :test ]
 
 gem "rspec", groups: [ :development, :test ]
 gem "rspec-rails", groups: [ :development, :test ]
