@@ -93,13 +93,32 @@ module OmniAgent
         def configured_stdio_principal_block; setting(:@stdio_principal_block); end
         def configured_allowed_origins; list_setting(:@allowed_origins); end
 
-        # Ordered { "ToolName" => tool_class }. Resolved on every call so lazily
-        # referenced tools (strings, tools_from) pick up code reloads.
+        # Ordered { "ToolName" => tool_class }: for each server in the
+        # inheritance chain, its <Server>::Tools namespace first, then its
+        # declared tools. Resolved on every call so lazily referenced tools
+        # (strings, tools_from, the Tools namespace) pick up code reloads.
         def tool_registry
-          configured_tool_declarations.each_with_object({}) do |declaration, registry|
-            resolve_declaration(declaration).each do |name, tool_class|
-              register_tool(registry, name, tool_class)
+          server_ancestors.reverse.each_with_object({}) do |server_class, registry|
+            entries = server_class.namespace_tool_classes.map { |tool_class| [ default_tool_name(tool_class), tool_class ] }
+            entries += (server_class.instance_variable_get(:@tool_declarations) || []).flat_map do |declaration|
+              resolve_declaration(declaration)
             end
+
+            entries.each { |name, tool_class| register_tool(registry, name, tool_class) }
+          end
+        end
+
+        # Tools defined under this server's own namespace, e.g.
+        # app/mcp_servers/support_server/tools/*.rb -> SupportServer::Tools::*.
+        def namespace_tool_classes
+          return [] unless const_defined?(:Tools, false)
+
+          namespace = const_get(:Tools, false)
+          return [] unless namespace.is_a?(Module)
+
+          namespace.constants.sort.filter_map do |const_name|
+            const = namespace.const_get(const_name, false)
+            const if const.is_a?(Class) && const < OmniAgent::Tool
           end
         end
 

@@ -99,6 +99,55 @@ RSpec.describe OmniAgent::MCP::Server do
     end
   end
 
+  describe "Tools namespace" do
+    def stub_namespace_tool(server_name, tool_name, parent = MCPSpecTools::Echo)
+      stub_const("#{server_name}::Tools", Module.new) unless Object.const_get(server_name).const_defined?(:Tools, false)
+      stub_const("#{server_name}::Tools::#{tool_name}", Class.new(parent))
+    end
+
+    it "auto-registers tools under <Server>::Tools, sorted by name" do
+      build_server("NamespacedServer")
+      stub_namespace_tool("NamespacedServer", "Zeta")
+      stub_namespace_tool("NamespacedServer", "Alpha")
+      stub_const("NamespacedServer::Tools::HELPER", 1)
+
+      expect(NamespacedServer.tool_registry).to eq(
+        "Alpha" => NamespacedServer::Tools::Alpha,
+        "Zeta" => NamespacedServer::Tools::Zeta
+      )
+    end
+
+    it "lists namespace tools before declared tools" do
+      build_server("MixedServer") { tool MCPSpecTools::Boom, as: "boom" }
+      stub_namespace_tool("MixedServer", "Local")
+
+      expect(MixedServer.tool_registry.keys).to eq(%w[Local boom])
+    end
+
+    it "raises when a declared tool collides with a namespace tool" do
+      build_server("CollidingServer") { tool MCPSpecTools::Boom, as: "Local" }
+      stub_namespace_tool("CollidingServer", "Local")
+
+      expect { CollidingServer.tool_registry }.to raise_error(OmniAgent::MCPError, /Duplicate MCP tool name "Local"/)
+    end
+
+    it "includes a parent server's namespace tools once, plus the child's own" do
+      build_server("ParentNsServer")
+      stub_namespace_tool("ParentNsServer", "Shared")
+      stub_const("ChildNsServer", Class.new(ParentNsServer))
+
+      expect(ChildNsServer.tool_registry.keys).to eq(%w[Shared])
+
+      stub_namespace_tool("ChildNsServer", "Own")
+
+      expect(ChildNsServer.tool_registry.keys).to eq(%w[Shared Own])
+    end
+
+    it "returns no namespace tools when the server has no Tools namespace" do
+      expect(build_server("PlainServer").namespace_tool_classes).to eq([])
+    end
+  end
+
   describe "inheritance" do
     it "inherits settings and tools from a parent server" do
       parent = build_server("ApplicationSpecServer") do

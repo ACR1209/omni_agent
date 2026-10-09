@@ -29,6 +29,19 @@ RSpec.describe ResearchServer do
     )
   end
 
+  it "auto-registers tools from app/mcp_servers/research_server/tools first" do
+    names = JSON.parse(rpc("tools/list").body).dig("result", "tools").map { |tool| tool["name"] }
+
+    expect(names.first).to eq("SupportedCities")
+    expect(ResearchServer.namespace_tool_classes).to eq([ ResearchServer::Tools::SupportedCities ])
+  end
+
+  it "returns structured content from a server-local tool" do
+    result = JSON.parse(rpc("tools/call", { name: "SupportedCities" }).body)["result"]
+
+    expect(result["structuredContent"]).to eq("cities" => [ "Quito", "Guayaquil", "Cuenca" ])
+  end
+
   it "calls a tool" do
     result = JSON.parse(rpc("tools/call", { name: "GetWeather", arguments: { city: "Quito" } }).body)["result"]
 
