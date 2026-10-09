@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.10](https://github.com/ACR1209/omni_agent/compare/omni_agent/v0.1.9...omni_agent/v0.1.10) (2026-10-09)
+
+
+### Features
+
+* **mcp:** expose tools and agents as MCP servers ([#40](https://github.com/ACR1209/omni_agent/issues/40)) ([db8dcb8](https://github.com/ACR1209/omni_agent/commit/db8dcb8776cc0baaed45112b61bc329f03d32181))
+
 ## [0.1.9](https://github.com/ACR1209/omni_agent/compare/omni_agent/v0.1.8...omni_agent/v0.1.9) (2026-07-12)
 
 
