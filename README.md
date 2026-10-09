@@ -12,6 +12,7 @@ tool schemas, and generation lifecycle callbacks.
 - Agent callbacks (`before_generation`, `after_generation`)
 - Agent and tool tags to support filtering strategies
 - OpenAI provider integration out of the box, plus an Ollama provider for local models
+- MCP server support: expose tools and whole agents to Claude Code, Claude Desktop, Cursor and other MCP clients
 - Rake tasks and Rails generators for scaffolding
 
 ## Installation
@@ -239,6 +240,51 @@ bundle exec omni_agent eval evals/research_agent_eval.rb --fresh
 There's also an equivalent `rake omni_agent:eval` task (`rake "omni_agent:eval[pattern,fresh]"`) if you'd rather not use the binstub.
 
 Calls real LLM providers (cost, non-determinism) — deliberately **not** part of `bundle exec rspec` or CI.
+
+## MCP Servers
+
+Expose your tools (and whole agents) to MCP clients such as Claude Code, Claude Desktop and Cursor. The protocol is implemented natively; no extra gem is needed.
+
+```bash
+rails generate omni_agent:mcp_server Support --with-tools LookupOrder --agents SupportAgent
+```
+
+```ruby
+# app/mcp_servers/support_server.rb
+class SupportServer < OmniAgent::MCP::Server
+	instructions "Tools for the support team."
+
+	# Tools in app/mcp_servers/support_server/tools/ (SupportServer::Tools::*) are added automatically.
+	# Reuse existing tools and agents too:
+	tools ResearchAgent::Tools::GetWeather
+	tools_from SupportAgent
+	expose_agent ResearchAgent, as: :research, description: "Ask the research agent", forward: [ :current_user ]
+
+	authenticate :bearer, tokens: -> { ENV.fetch("SUPPORT_MCP_TOKENS", "").split(",") }
+	# or: authenticate { |request| User.find_by(api_token: request.bearer_token) }
+
+	authorize_tool { |tool_class, principal| !tool_class.tags.include?(:admin) }
+	context { |principal, _request| { current_user: principal } }
+end
+```
+
+```ruby
+# config/routes.rb -- Streamable HTTP (stateless, POST only)
+mcp_server :support                        # SupportServer at /mcp/support
+mcp_server :billing, path: "/internal/mcp"
+# or mount every server in app/mcp_servers at /mcp/<name>:
+mcp_servers
+```
+
+```bash
+# stdio, for local clients
+bundle exec omni_agent mcp SupportServer
+
+claude mcp add --transport http support http://localhost:3000/mcp/support --header "Authorization: Bearer $TOKEN"
+claude mcp add support -- bundle exec omni_agent mcp SupportServer
+```
+
+Tools can declare MCP-only hints with `title "Get weather"` and `annotations read_only: true, destructive: false, idempotent: true, open_world: true`. HTTP servers must declare `authenticate` (use `authenticate :none` to opt out on purpose). Requests from browser origins that are not in `allowed_origins` / `config.mcp_allowed_origins` are rejected.
 
 ## Configuration
 

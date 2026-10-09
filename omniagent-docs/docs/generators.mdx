@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # Generators
 
-Omni Agent ships three Rails generators to scaffold your project.
+Omni Agent ships four Rails generators to scaffold your project.
 
 ## Install Generator
 
@@ -48,3 +48,39 @@ rails generate omni_agent:eval ResearchAgent
 ```
 
 Generates `evals/research_agent_eval.rb` with a starter `eval_case` for `ResearchAgent`. See [Generating and Running Evals](./evals/generating-and-running.mdx), [Golden Sets](./evals/golden-sets.mdx), [Judge Provider](./evals/judge-provider.mdx), and [Caching](./evals/caching.mdx).
+
+## MCP Server Generator
+
+```bash
+rails generate omni_agent:mcp_server Support --with-tools LookupOrder RefundOrder --agents SupportAgent
+```
+
+Generates:
+
+```text
+app/mcp_servers/
+├── support_server.rb
+└── support_server/
+    └── tools/
+        ├── lookup_order.rb
+        └── refund_order.rb
+```
+
+The server is protected by bearer tokens from `SUPPORT_MCP_TOKENS`. The generator also adds this route:
+
+```ruby
+mcp_server :support
+```
+
+If `config/routes.rb` already mounts every server with a bare `mcp_servers`, the generator skips the route because the new server is mounted automatically.
+
+It then prints the commands to connect Claude Code over HTTP and stdio.
+
+### Options
+
+* **`--with-tools`**: Space-separated list of server tools to scaffold under `app/mcp_servers/<name>_server/tools/`. They are added to the server automatically. If you pass `--with-tools` with no names, an `ExampleTool` is generated.
+* **`--tools`**: Existing tool classes (for example, agent tools) to expose with `tools`.
+* **`--agents`**: Agents whose tools are all exposed with `tools_from`.
+* **`--path`**: Mount path, written as `mcp_server :support, path: "..."`. Defaults to `/mcp/<name>`.
+
+The `Server` suffix is added if you leave it out (`Support` → `SupportServer`). See [Defining MCP Servers](./mcp/defining-servers.mdx).

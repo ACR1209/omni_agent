@@ -5,8 +5,19 @@ require "optparse"
 
 options = { fresh: false }
 parser = OptionParser.new do |opts|
-  opts.banner = "Usage: omni_agent eval [pattern] [options]"
+  opts.banner = <<~BANNER
+    Usage: omni_agent eval [pattern] [options]
+           omni_agent mcp <ServerClass>
+  BANNER
   opts.on("--fresh", "Clear the eval cache before running") { options[:fresh] = true }
+end
+
+def require_rails_environment(command)
+  environment_file = File.expand_path("config/environment", Dir.pwd)
+  unless File.exist?("#{environment_file}.rb")
+    abort "Could not find config/environment.rb -- run `omni_agent #{command}` from your Rails app root."
+  end
+  require environment_file
 end
 
 command = ARGV.shift
@@ -16,11 +27,7 @@ when "eval"
   parser.parse!(ARGV)
   pattern = ARGV.shift
 
-  environment_file = File.expand_path("config/environment", Dir.pwd)
-  unless File.exist?("#{environment_file}.rb")
-    abort "Could not find config/environment.rb -- run `omni_agent eval` from your Rails app root."
-  end
-  require environment_file
+  require_rails_environment("eval")
 
   status = OmniAgent::Eval::CLI.run(pattern: pattern, fresh: options[:fresh])
 
@@ -32,6 +39,15 @@ when "eval"
   when :failed
     exit 1
   end
+when "mcp"
+  server = ARGV.shift.to_s.strip
+  if server.empty?
+    warn "Missing server class. Example: omni_agent mcp SupportServer"
+    exit 1
+  end
+
+  require_rails_environment("mcp")
+  OmniAgent::MCP::Stdio.start(server)
 when nil
   warn parser.banner
   exit 1

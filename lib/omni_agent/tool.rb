@@ -11,6 +11,31 @@ module OmniAgent
         @metadata || {}
       end
 
+      def title(text = nil)
+        @title = text if text
+        @title
+      end
+
+      def annotations(read_only: nil, destructive: nil, idempotent: nil, open_world: nil)
+        @annotations = {
+          read_only: read_only,
+          destructive: destructive,
+          idempotent: idempotent,
+          open_world: open_world
+        }.compact
+      end
+
+      def mcp_annotations
+        hints = @annotations || {}
+
+        {
+          readOnlyHint: hints[:read_only],
+          destructiveHint: hints[:destructive],
+          idempotentHint: hints[:idempotent],
+          openWorldHint: hints[:open_world]
+        }.compact
+      end
+
       def tags(*tag_names)
         return @tags || [] if tag_names.empty?
 

@@ -1,0 +1,195 @@
+---
+sidebar_position: 1
+---
+
+# Defining MCP Servers
+
+The [Model Context Protocol](https://modelcontextprotocol.io) (MCP) lets AI clients such as Claude Code, Claude Desktop and Cursor call tools that live in your app. `OmniAgent::MCP::Server` turns the `OmniAgent::Tool` classes you already wrote for your agents — and the agents themselves — into an MCP server, with no extra gem.
+
+v1 supports MCP **tools** only (no resources or prompts), over [Streamable HTTP and stdio](./transports.mdx).
+
+A server gets its tools in two ways, and you can use both together:
+
+* **Its own `tools/` directory**: tools that only this server uses. They are added automatically, like agent tools.
+* **The DSL**: `tools`, `tool`, `tools_from` and `expose_agent` reuse tools and agents that you already have.
+
+## Generate a Server
+
+```bash
+rails generate omni_agent:mcp_server Support --agents SupportAgent
+```
+
+This creates `app/mcp_servers/support_server.rb` and mounts it at `/mcp/support`. Add `--with-tools LookupOrder RefundOrder` to also scaffold server tools. See [Generators](/docs/generators#mcp-server-generator) for every option.
+
+## The Server Tools Directory
+
+Put tools that belong only to the server in `app/mcp_servers/<server_name>/tools/`, namespaced under `<ServerClass>::Tools`:
+
+```text
+app/mcp_servers/
+├── support_server.rb
+└── support_server/
+    └── tools/
+        ├── lookup_order.rb
+        └── refund_order.rb
+```
+
+```ruby
+# app/mcp_servers/support_server/tools/lookup_order.rb
+module SupportServer::Tools
+  class LookupOrder < OmniAgent::Tool
+    description "Find an order by number."
+    annotations read_only: true
+
+    input do
+      string :number, description: "Order number"
+    end
+
+    def execute(number:)
+      Order.find_by!(number: number).as_json(only: %i[number status total])
+    end
+  end
+end
+```
+
+Every `OmniAgent::Tool` subclass in `SupportServer::Tools` is exposed under its class name (`LookupOrder`). There is nothing to register. Rails autoloads these files and reloads them in development, so new or changed tools appear on the next request.
+
+Directory tools are listed first, sorted by name, followed by the tools you declare with the DSL. A server that inherits from another server also gets the parent's directory tools.
+
+## The Server DSL
+
+```ruby
+# app/mcp_servers/support_server.rb
+class SupportServer < OmniAgent::MCP::Server
+  server_name "support"            # default: underscored class name minus _server
+  server_version "1.0.0"           # default: "0.1.0"
+  instructions "Tools for the support team."
+
+  tools ResearchAgent::Tools::GetWeather, TaskAgent::Tools::SetPriority
+  tool  TaskAgent::Tools::AssignTicket, as: "assign_ticket"
+  tools_from TaskAgent
+  expose_agent ResearchAgent, as: :research, description: "Ask the research agent", forward: [ :current_user ]
+
+  authenticate :bearer, tokens: -> { ENV.fetch("SUPPORT_MCP_TOKENS", "").split(",") }
+  authorize_tool { |tool_class, principal| principal.admin? || !tool_class.tags.include?(:admin) }
+  context { |principal, request| { current_user: principal } }
+end
+```
+
+* **`server_name`** / **`server_version`**: Reported to the client in `serverInfo` during the `initialize` handshake.
+* **`instructions`**: Optional text the client can show to its model, describing how to use your tools.
+* **`<ServerClass>::Tools`**: Added automatically. See [The Server Tools Directory](#the-server-tools-directory).
+* **`tools`**: One or more `OmniAgent::Tool` classes. Each is exposed under its demodulized class name (`ResearchAgent::Tools::GetWeather` → `GetWeather`), the same name agents use.
+* **`tool klass, as:`**: Expose a single tool under a different name.
+* **`tools_from AgentClass`**: Expose every tool the agent has — its `<AgentClass>::Tools` namespace plus any [`delegate_to`](/docs/agent/delegation) tools. Resolved on each request, so new tools show up without editing the server.
+* **`expose_agent`**: Expose a whole agent as a single tool. See [Exposing Agents](#exposing-agents).
+* **`authenticate`**: Required for HTTP. See [Authentication](./authentication.mdx).
+* **`authorize_tool`** / **`context`**: See [Per-Principal Tool Access](#per-principal-tool-access) and [Tool Context](#tool-context).
+
+Tool classes can also be passed as strings (`tools "ResearchAgent::Tools::GetWeather"`). They are resolved when the tool list is built, which helps if the server file loads before your agents.
+
+### Tool Names
+
+MCP tool names must be 1–128 characters from `A-Z a-z 0-9 _ - .`. Two tools with the same name raise `OmniAgent::MCPError`, including a directory tool and a declared tool. If two agents both define a `Search` tool, rename one:
+
+```ruby
+tools_from DocsAgent
+tool TicketsAgent::Tools::Search, as: "search_tickets"
+```
+
+### Sharing Configuration
+
+Servers inherit from parent servers. Settings (`authenticate`, `authorize_tool`, `context`, `stdio_principal`, `instructions`, `server_version`) use the nearest declaration. Tools and allowed origins add up:
+
+```ruby
+class ApplicationMcpServer < OmniAgent::MCP::Server
+  authenticate { |request| User.find_by(api_token: request.bearer_token) }
+  context { |principal, _request| { current_user: principal } }
+end
+
+class SupportServer < ApplicationMcpServer
+  tools_from SupportAgent
+end
+```
+
+## Tool Annotations
+
+MCP clients use optional hints to decide, for example, whether to ask the user before a call. Declare them on the tool class:
+
+```ruby
+class GetWeather < OmniAgent::Tool
+  title "Get weather"
+  annotations read_only: true, destructive: false, idempotent: true, open_world: true
+end
+```
+
+| DSL key | MCP annotation | Meaning |
+|---|---|---|
+| `read_only:` | `readOnlyHint` | The tool does not change anything |
+| `destructive:` | `destructiveHint` | The tool can delete or overwrite data |
+| `idempotent:` | `idempotentHint` | Calling it again with the same arguments has no extra effect |
+| `open_world:` | `openWorldHint` | The tool talks to external systems |
+
+`title` is a human-friendly display name. Neither `title` nor `annotations` is sent to LLM providers when the tool is used by an agent. Clients treat annotations as hints, not as guarantees, so do not rely on them for security.
+
+## How Calls Work
+
+* `tools/list` returns each tool's name, `title`, `description`, `inputSchema` (the same JSON schema built by `input do ... end`) and annotations.
+* `tools/call` creates a new tool instance, sets its `context`, and calls `invoke` with the client's arguments. Arguments are validated exactly as they are for agents.
+* **Return values**: a `String` becomes text content. A `Hash` becomes JSON text plus `structuredContent`. An `Array` becomes JSON text. `nil` becomes empty text. Any other value is converted with `to_s`.
+* **Errors**: Validation failures (`ArgumentError`) and exceptions raised by `#execute` return a tool result with `isError: true` and the text `Error executing tool: <message>`, the same text agents receive. The model can then correct its arguments. Errors are logged to `Rails.logger`.
+* An unknown tool name, or a tool the principal may not use, returns JSON-RPC error `-32602`.
+
+## Exposing Agents
+
+`expose_agent` wraps an agent as one tool with a single `input` string argument. It works like [`delegate_to`](/docs/agent/delegation): the agent runs its full loop, including its own tool calls, and returns its final answer as the tool result.
+
+```ruby
+expose_agent ResearchAgent, as: :research,
+                            description: "Ask the research agent",
+                            run_alias: :summarize,
+                            forward: [ :current_user ]
+```
+
+* **`as:`**: The MCP tool name, used as given (`:research` → `research`).
+* **`description:`**: Defaults to `"Delegate to <AgentClass>."`.
+* **`run_alias:`**: Call a [run entrypoint](/docs/agent/run-entrypoints) instead of `run`.
+* **`forward:`**: Tool context keys passed to the agent's `context:`. Use `true` for all keys. The default is `[]` (no context). Combine with the [`context`](#tool-context) block to give the agent the current user.
+
+Each call to an exposed agent is a call to your LLM provider, so it costs money. Protect these tools with authentication and, if needed, `authorize_tool`.
+
+## Per-Principal Tool Access
+
+`authorize_tool` decides which tools each principal can see and call. It receives the tool class, the principal returned by [authentication](./authentication.mdx) and the registered tool name. It runs for both `tools/list` and `tools/call`. A hidden tool is reported as unknown.
+
+```ruby
+authorize_tool do |tool_class, principal, name|
+  next true if principal.admin?
+
+  !tool_class.tags.include?(:admin) && name != "research"
+end
+```
+
+The block runs on the server instance, so `transport` (`:http` or `:stdio`) and `request` are also available.
+
+## Tool Context
+
+Every MCP tool call sets `tool.context` to:
+
+```ruby
+{ mcp_principal: principal, mcp_request: request } # request is nil over stdio
+```
+
+The `context` block merges extra keys. Use it to give tools that you share with agents the same keys that the agents give them:
+
+```ruby
+context { |principal, request| { current_user: principal, ip: request&.ip } }
+```
+
+```ruby
+class SetPriority < OmniAgent::Tool
+  def execute(ticket:, priority:)
+    Ticket.find(ticket).update!(priority: priority, updated_by: context[:current_user])
+  end
+end
+```

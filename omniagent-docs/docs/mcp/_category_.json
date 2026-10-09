@@ -1,0 +1,9 @@
+{
+  "label": "MCP Servers",
+  "position": 8,
+  "link": {
+    "type": "generated-index",
+    "description": "Expose your tools and agents to Claude Code, Claude Desktop, Cursor and other MCP clients."
+  },
+  "collapsed": false
+}

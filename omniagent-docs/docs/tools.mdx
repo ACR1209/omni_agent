@@ -34,6 +34,19 @@ end
 * **`input`**: Declares the JSON-schema-style parameters the model must supply.
 * **`execute`**: Runs when the model calls the tool. Receives the parsed arguments as keyword args.
 
+## MCP Title and Annotations
+
+When a tool is exposed through an [MCP server](/docs/mcp/defining-servers), you can add a display title and behavior hints for MCP clients:
+
+```ruby
+class GetWeather < OmniAgent::Tool
+  title "Get weather"
+  annotations read_only: true, destructive: false, idempotent: true, open_world: true
+end
+```
+
+These are sent only to MCP clients, not to LLM providers. See [Tool Annotations](/docs/mcp/defining-servers#tool-annotations).
+
 ## Input Schema DSL
 
 Use `input do ... end` to declare typed parameters:
@@ -155,3 +168,5 @@ end
 ## How Tools Are Discovered
 
 `OmniAgent::Agent#available_tools` looks up the `<AgentClass>::Tools` namespace and collects every constant that is a subclass of `OmniAgent::Tool`. There's no manual registration step — defining a tool class in the right namespace is enough for the agent to pick it up.
+
+The class method `AgentClass.tool_classes` returns the same list without creating an agent instance (and therefore without a provider). [`tools_from`](/docs/mcp/defining-servers) in MCP servers uses it.

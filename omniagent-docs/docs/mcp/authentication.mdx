@@ -1,0 +1,90 @@
+---
+sidebar_position: 2
+---
+
+# Authentication
+
+An MCP server mounted over HTTP lets anyone who can reach the URL run your tools. For that reason, **every server must declare `authenticate`**. A server without it raises `OmniAgent::MCPError` on the first HTTP request. To make a server public on purpose, write `authenticate :none`.
+
+Authentication returns a **principal**: the identity of the caller. The principal is passed to [`authorize_tool`](./defining-servers.mdx#per-principal-tool-access), to the [`context`](./defining-servers.mdx#tool-context) block, and to tools as `context[:mcp_principal]`.
+
+Requests that fail authentication get `401 Unauthorized` with `WWW-Authenticate: Bearer realm="<server_name>"`.
+
+## Static Bearer Tokens
+
+```ruby
+authenticate :bearer, tokens: -> { ENV.fetch("SUPPORT_MCP_TOKENS", "").split(",") }
+```
+
+Clients send `Authorization: Bearer <token>`. `tokens:` accepts:
+
+* **An Array**: Any listed token is accepted. The principal is `:bearer_token`.
+* **A Hash of `principal => token`**: The principal is the matching key. Use it to tell callers apart:
+
+  ```ruby
+  authenticate :bearer, tokens: -> { { "ci" => ENV["CI_MCP_TOKEN"], "ops" => ENV["OPS_MCP_TOKEN"] } }
+  ```
+
+* **A Proc that returns either of the above**: The proc runs on every request, so you can rotate tokens in the environment or in credentials without restarting the server. Use a proc whenever you read tokens from `ENV`.
+
+Tokens are compared with `ActiveSupport::SecurityUtils.secure_compare`. Every configured token is checked, with no early exit. Blank tokens are ignored, so an unset environment variable never matches an empty `Authorization` header.
+
+## Custom Authentication
+
+Pass a block to authenticate against your own data. The block receives an `OmniAgent::MCP::Request` (a `Rack::Request` that also has `#bearer_token`). Return the principal, or `nil`/`false` to reject the request:
+
+```ruby
+authenticate do |request|
+  User.find_by(api_token: request.bearer_token)
+end
+```
+
+The returned user is then the principal everywhere:
+
+```ruby
+authorize_tool { |tool_class, user| user.admin? || !tool_class.tags.include?(:admin) }
+context { |user, _request| { current_user: user } }
+```
+
+## No Authentication
+
+```ruby
+authenticate :none
+```
+
+Every request is accepted and the principal is `nil`. Use this only for servers that are not reachable from outside your machine or network, or for tools that are safe for anyone to run.
+
+## stdio
+
+The stdio transport runs as a local subprocess that the MCP client starts. It already has your shell's access, so it does **not** run `authenticate`. Use `stdio_principal` to choose who the local caller is:
+
+```ruby
+stdio_principal { User.find_by(email: ENV["MCP_USER_EMAIL"]) }
+```
+
+The block runs once when the process starts. Without it, the principal is `nil`. `authorize_tool` and `context` still apply over stdio.
+
+## Origin Checks
+
+Browsers send an `Origin` header. A malicious web page can use DNS rebinding to make a browser send requests to a server on `localhost`. For this reason, the MCP specification requires servers to check `Origin`. OmniAgent rejects requests that have an `Origin` header that is not in the allowlist with `403 Forbidden`. Requests without an `Origin` header are allowed. CLI and desktop clients do not send one.
+
+If a browser-based client must call your server, allow its origin on the server or globally:
+
+```ruby
+class SupportServer < OmniAgent::MCP::Server
+  allowed_origins "https://inspector.example.com", %r{\Ahttps://.*\.mycompany\.com\z}
+end
+
+OmniAgent.configure do |config|
+  config.mcp_allowed_origins = [ "https://inspector.example.com" ]
+end
+```
+
+## Security Checklist
+
+* Serve the endpoint over **HTTPS** in production. Bearer tokens in plain HTTP can be read by anyone on the network.
+* Give each client its own token (Hash form) so you can revoke one without affecting the others.
+* Hide destructive or expensive tools (such as [exposed agents](./defining-servers.mdx#exposing-agents)) with `authorize_tool`.
+* Tool error messages are returned to the client. Do not put secrets in exception messages.
+* Request bodies larger than `mcp_max_request_bytes` (default 1 MiB) are rejected with `413`. See [Configuration](/docs/configuration).
+* OAuth 2.1 authorization from the MCP specification is not supported yet. Use bearer tokens or custom authentication.

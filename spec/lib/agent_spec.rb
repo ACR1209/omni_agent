@@ -907,6 +907,26 @@ RSpec.describe OmniAgent::Agent do
     expect { agent.mark_before("input") }.to raise_error(NoMethodError)
   end
 
+  describe ".tool_classes" do
+    it "returns namespace tools plus delegated tools without instantiating the agent" do
+      agent_class = Class.new(described_class)
+      stub_const("ToolClassesAgent", agent_class)
+      stub_const("ToolClassesAgent::Tools", Module.new)
+      stub_const("ToolClassesAgent::Tools::Lookup", Class.new(OmniAgent::Tool))
+      stub_const("ToolClassesAgent::Tools::NOT_A_TOOL", 1)
+      stub_const("ToolClassesHelperAgent", Class.new(described_class))
+      ToolClassesAgent.delegate_to ToolClassesHelperAgent, as: :helper
+
+      expect(ToolClassesAgent.tool_classes).to eq([ ToolClassesAgent::Tools::Lookup, ToolClassesAgent::DelegatedTools::Helper ])
+    end
+
+    it "returns an empty list when the agent has no tools" do
+      stub_const("NoToolsAgent", Class.new(described_class))
+
+      expect(NoToolsAgent.tool_classes).to eq([])
+    end
+  end
+
   describe ".delegate_to" do
     around do |example|
       previous_config = OmniAgent.instance_variable_get(:@configuration)

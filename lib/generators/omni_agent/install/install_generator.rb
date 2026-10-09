@@ -15,6 +15,7 @@ module OmniAgent
       def show_next_steps
         say "OmniAgent install complete."
         say "Next: rails generate omni_agent:agent SupportAgent --with-tools Tool1 Tool2"
+        say "Expose tools to MCP clients: rails generate omni_agent:mcp_server Support --agents SupportAgent"
       end
     end
   end
