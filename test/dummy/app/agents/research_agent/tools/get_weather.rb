@@ -1,6 +1,8 @@
 module ResearchAgent::Tools
   class GetWeather < OmniAgent::Tool
+    title "Get weather"
     description "Retrieves current weather details."
+    annotations read_only: true, destructive: false, idempotent: true, open_world: true
 
     input do
       string :city, description: "The name of the city"
