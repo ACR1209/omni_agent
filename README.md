@@ -270,7 +270,10 @@ end
 
 ```ruby
 # config/routes.rb -- Streamable HTTP (stateless, POST only)
-mount OmniAgent::MCP::RackApp.new("SupportServer") => "/mcp/support"
+mcp_server :support                        # SupportServer at /mcp/support
+mcp_server :billing, path: "/internal/mcp"
+# or mount every server in app/mcp_servers at /mcp/<name>:
+mcp_servers
 ```
 
 ```bash

@@ -69,8 +69,10 @@ app/mcp_servers/
 The server is protected by bearer tokens from `SUPPORT_MCP_TOKENS`. The generator also adds this route:
 
 ```ruby
-mount OmniAgent::MCP::RackApp.new("SupportServer") => "/mcp/support"
+mcp_server :support
 ```
+
+If `config/routes.rb` already mounts every server with a bare `mcp_servers`, the generator skips the route because the new server is mounted automatically.
 
 It then prints the commands to connect Claude Code over HTTP and stdio.
 
@@ -79,6 +81,6 @@ It then prints the commands to connect Claude Code over HTTP and stdio.
 * **`--with-tools`**: Space-separated list of server tools to scaffold under `app/mcp_servers/<name>_server/tools/`. They are added to the server automatically. If you pass `--with-tools` with no names, an `ExampleTool` is generated.
 * **`--tools`**: Existing tool classes (for example, agent tools) to expose with `tools`.
 * **`--agents`**: Agents whose tools are all exposed with `tools_from`.
-* **`--path`**: Mount path. Defaults to `/mcp/<name>`.
+* **`--path`**: Mount path, written as `mcp_server :support, path: "..."`. Defaults to `/mcp/<name>`.
 
 The `Server` suffix is added if you leave it out (`Support` → `SupportServer`). See [Defining MCP Servers](./mcp/defining-servers.mdx).
