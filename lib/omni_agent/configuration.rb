@@ -1,7 +1,8 @@
 module OmniAgent
   class Configuration
     attr_accessor :default_provider, :default_model, :max_retries, :retry_base_delay, :max_tool_iterations,
-                  :max_delegation_depth, :eval_judge_provider, :eval_judge_model, :eval_cache_enabled, :eval_cache_path
+                  :max_delegation_depth, :eval_judge_provider, :eval_judge_model, :eval_cache_enabled, :eval_cache_path,
+                  :mcp_allowed_origins, :mcp_max_request_bytes
 
     def initialize
       @default_provider = :openai
@@ -14,6 +15,8 @@ module OmniAgent
       @eval_judge_model = nil
       @eval_cache_enabled = true
       @eval_cache_path = "tmp/omni_agent_eval_cache.json"
+      @mcp_allowed_origins = []
+      @mcp_max_request_bytes = 1_048_576
     end
   end
 end
