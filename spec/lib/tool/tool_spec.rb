@@ -19,6 +19,47 @@ RSpec.describe OmniAgent::Tool do
     end
   end
 
+  describe ".title" do
+    it "is nil by default" do
+      expect(Class.new(described_class).title).to be_nil
+    end
+
+    it "stores and returns a custom title" do
+      klass = Class.new(described_class)
+
+      klass.title("Search documents")
+
+      expect(klass.title).to eq("Search documents")
+    end
+  end
+
+  describe ".annotations" do
+    it "maps declared hints to MCP annotation keys" do
+      klass = Class.new(described_class)
+
+      klass.annotations(read_only: true, destructive: false, idempotent: true, open_world: false)
+
+      expect(klass.mcp_annotations).to eq(
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false
+      )
+    end
+
+    it "omits undeclared hints" do
+      klass = Class.new(described_class)
+
+      klass.annotations(read_only: true)
+
+      expect(klass.mcp_annotations).to eq(readOnlyHint: true)
+    end
+
+    it "is empty by default" do
+      expect(Class.new(described_class).mcp_annotations).to eq({})
+    end
+  end
+
   describe ".metadata" do
     it "returns an empty hash by default" do
       klass = Class.new(described_class)
