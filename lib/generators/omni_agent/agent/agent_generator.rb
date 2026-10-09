@@ -7,6 +7,7 @@ module OmniAgent
       class_option :with_tools,
                    type: :array,
                    default: nil,
+                   lazy_default: [],
                    banner: "[Tool1 Tool2 ...]",
                    desc: "Create tools folder and scaffold tools. Optionally pass tool names"
       class_option :model,
