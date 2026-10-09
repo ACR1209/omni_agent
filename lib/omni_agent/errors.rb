@@ -6,6 +6,7 @@ module OmniAgent
     class MaxToolIterationsError < Error; end
     class MaxDelegationDepthError < Error; end
     class EvalAssertionError < Error; end
+    class MCPError < Error; end
   end
 
   Error = Errors::Error
@@ -14,4 +15,5 @@ module OmniAgent
   MaxToolIterationsError = Errors::MaxToolIterationsError
   MaxDelegationDepthError = Errors::MaxDelegationDepthError
   EvalAssertionError = Errors::EvalAssertionError
+  MCPError = Errors::MCPError
 end
