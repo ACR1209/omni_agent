@@ -8,13 +8,53 @@ The [Model Context Protocol](https://modelcontextprotocol.io) (MCP) lets AI clie
 
 v1 supports MCP **tools** only (no resources or prompts), over [Streamable HTTP and stdio](./transports.mdx).
 
+A server gets its tools in two ways, and you can use both together:
+
+* **Its own `tools/` directory**: tools that only this server uses. They are added automatically, like agent tools.
+* **The DSL**: `tools`, `tool`, `tools_from` and `expose_agent` reuse tools and agents that you already have.
+
 ## Generate a Server
 
 ```bash
 rails generate omni_agent:mcp_server Support --agents SupportAgent
 ```
 
-This creates `app/mcp_servers/support_server.rb` and mounts it at `/mcp/support`. See [Generators](/docs/generators#mcp-server-generator) for every option.
+This creates `app/mcp_servers/support_server.rb` and mounts it at `/mcp/support`. Add `--with-tools LookupOrder RefundOrder` to also scaffold server tools. See [Generators](/docs/generators#mcp-server-generator) for every option.
+
+## The Server Tools Directory
+
+Put tools that belong only to the server in `app/mcp_servers/<server_name>/tools/`, namespaced under `<ServerClass>::Tools`:
+
+```text
+app/mcp_servers/
+├── support_server.rb
+└── support_server/
+    └── tools/
+        ├── lookup_order.rb
+        └── refund_order.rb
+```
+
+```ruby
+# app/mcp_servers/support_server/tools/lookup_order.rb
+module SupportServer::Tools
+  class LookupOrder < OmniAgent::Tool
+    description "Find an order by number."
+    annotations read_only: true
+
+    input do
+      string :number, description: "Order number"
+    end
+
+    def execute(number:)
+      Order.find_by!(number: number).as_json(only: %i[number status total])
+    end
+  end
+end
+```
+
+Every `OmniAgent::Tool` subclass in `SupportServer::Tools` is exposed under its class name (`LookupOrder`). There is nothing to register. Rails autoloads these files and reloads them in development, so new or changed tools appear on the next request.
+
+Directory tools are listed first, sorted by name, followed by the tools you declare with the DSL. A server that inherits from another server also gets the parent's directory tools.
 
 ## The Server DSL
 
@@ -38,6 +78,7 @@ end
 
 * **`server_name`** / **`server_version`**: Reported to the client in `serverInfo` during the `initialize` handshake.
 * **`instructions`**: Optional text the client can show to its model, describing how to use your tools.
+* **`<ServerClass>::Tools`**: Added automatically. See [The Server Tools Directory](#the-server-tools-directory).
 * **`tools`**: One or more `OmniAgent::Tool` classes. Each is exposed under its demodulized class name (`ResearchAgent::Tools::GetWeather` → `GetWeather`), the same name agents use.
 * **`tool klass, as:`**: Expose a single tool under a different name.
 * **`tools_from AgentClass`**: Expose every tool the agent has — its `<AgentClass>::Tools` namespace plus any [`delegate_to`](/docs/agent/delegation) tools. Resolved on each request, so new tools show up without editing the server.
@@ -49,7 +90,7 @@ Tool classes can also be passed as strings (`tools "ResearchAgent::Tools::GetWea
 
 ### Tool Names
 
-MCP tool names must be 1–128 characters from `A-Z a-z 0-9 _ - .`. Two tools with the same name raise `OmniAgent::MCPError`. If two agents both define a `Search` tool, rename one:
+MCP tool names must be 1–128 characters from `A-Z a-z 0-9 _ - .`. Two tools with the same name raise `OmniAgent::MCPError`, including a directory tool and a declared tool. If two agents both define a `Search` tool, rename one:
 
 ```ruby
 tools_from DocsAgent

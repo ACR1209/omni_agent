@@ -52,10 +52,21 @@ Generates `evals/research_agent_eval.rb` with a starter `eval_case` for `Researc
 ## MCP Server Generator
 
 ```bash
-rails generate omni_agent:mcp_server Support --agents SupportAgent --tools ResearchAgent::Tools::GetWeather
+rails generate omni_agent:mcp_server Support --with-tools LookupOrder RefundOrder --agents SupportAgent
 ```
 
-Generates `app/mcp_servers/support_server.rb`, protected by bearer tokens from `SUPPORT_MCP_TOKENS`, and adds this route:
+Generates:
+
+```text
+app/mcp_servers/
+├── support_server.rb
+└── support_server/
+    └── tools/
+        ├── lookup_order.rb
+        └── refund_order.rb
+```
+
+The server is protected by bearer tokens from `SUPPORT_MCP_TOKENS`. The generator also adds this route:
 
 ```ruby
 mount OmniAgent::MCP::RackApp.new("SupportServer") => "/mcp/support"
@@ -65,7 +76,8 @@ It then prints the commands to connect Claude Code over HTTP and stdio.
 
 ### Options
 
-* **`--tools`**: Tool classes to expose with `tools`.
+* **`--with-tools`**: Space-separated list of server tools to scaffold under `app/mcp_servers/<name>_server/tools/`. They are added to the server automatically. If you pass `--with-tools` with no names, an `ExampleTool` is generated.
+* **`--tools`**: Existing tool classes (for example, agent tools) to expose with `tools`.
 * **`--agents`**: Agents whose tools are all exposed with `tools_from`.
 * **`--path`**: Mount path. Defaults to `/mcp/<name>`.
 

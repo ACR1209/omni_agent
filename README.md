@@ -246,7 +246,7 @@ Calls real LLM providers (cost, non-determinism) — deliberately **not** part o
 Expose your tools (and whole agents) to MCP clients such as Claude Code, Claude Desktop and Cursor. The protocol is implemented natively; no extra gem is needed.
 
 ```bash
-rails generate omni_agent:mcp_server Support --agents SupportAgent
+rails generate omni_agent:mcp_server Support --with-tools LookupOrder --agents SupportAgent
 ```
 
 ```ruby
@@ -254,6 +254,8 @@ rails generate omni_agent:mcp_server Support --agents SupportAgent
 class SupportServer < OmniAgent::MCP::Server
 	instructions "Tools for the support team."
 
+	# Tools in app/mcp_servers/support_server/tools/ (SupportServer::Tools::*) are added automatically.
+	# Reuse existing tools and agents too:
 	tools ResearchAgent::Tools::GetWeather
 	tools_from SupportAgent
 	expose_agent ResearchAgent, as: :research, description: "Ask the research agent", forward: [ :current_user ]
