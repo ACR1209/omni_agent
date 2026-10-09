@@ -39,7 +39,14 @@ module OmniAgent
       end
 
       def mount_route
-        route %(mount OmniAgent::MCP::RackApp.new("#{server_class_name}") => "#{mount_path}")
+        if mounts_all_servers?
+          say_status :skip, "config/routes.rb already mounts every server with `mcp_servers`", :yellow
+          return
+        end
+
+        route_line = "mcp_server #{server_slug.include?('/') ? server_slug.inspect : ":#{server_slug}"}"
+        route_line += %(, path: "#{options[:path]}") if options[:path].present?
+        route route_line
       end
 
       def show_next_steps
@@ -48,10 +55,10 @@ module OmniAgent
         say ""
         say "Set a token, start the app and connect Claude Code over HTTP:"
         say "  #{token_env_var}=change-me bin/rails server"
-        say "  claude mcp add --transport http #{server_slug} http://localhost:3000#{mount_path} --header \"Authorization: Bearer change-me\""
+        say "  claude mcp add --transport http #{server_identifier} http://localhost:3000#{mount_path} --header \"Authorization: Bearer change-me\""
         say ""
         say "Or run it locally over stdio (no HTTP auth; see stdio_principal):"
-        say "  claude mcp add #{server_slug} -- bundle exec omni_agent mcp #{server_class_name}"
+        say "  claude mcp add #{server_identifier} -- bundle exec omni_agent mcp #{server_class_name}"
       end
 
       private
@@ -65,15 +72,24 @@ module OmniAgent
       end
 
       def server_slug
-        server_file_name.delete_suffix("_server").tr("/", "_")
+        OmniAgent::MCP::Routing.slug_for(server_class_name)
+      end
+
+      def server_identifier
+        server_slug.tr("/", "_")
       end
 
       def mount_path
-        options[:path].presence || "/mcp/#{server_slug.dasherize}"
+        options[:path].presence || "#{OmniAgent::MCP::Routing::DEFAULT_PATH_PREFIX}/#{server_slug.dasherize}"
+      end
+
+      def mounts_all_servers?
+        routes_file = File.join(destination_root, "config", "routes.rb")
+        File.exist?(routes_file) && File.read(routes_file).match?(/^\s*mcp_servers\s*(\(\s*\)|except:.*)?\s*$/)
       end
 
       def token_env_var
-        "#{server_slug.upcase}_MCP_TOKENS"
+        "#{server_identifier.upcase}_MCP_TOKENS"
       end
 
       def server_template
