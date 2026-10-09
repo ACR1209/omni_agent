@@ -99,6 +99,38 @@ module OmniAgent
         @delegated_tool_classes || []
       end
 
+      def tool_classes
+        tool_namespace = "#{name}::Tools".safe_constantize
+
+        namespace_tools = if tool_namespace
+          tool_namespace.constants.filter_map do |const_name|
+            const = tool_namespace.const_get(const_name)
+            const if const.is_a?(Class) && const < OmniAgent::Tool
+          end
+        else
+          []
+        end
+
+        namespace_tools + configured_delegated_tool_classes
+      end
+
+      def build_delegated_tool_class(agent_class, description:, run_alias:, forward:)
+        tool_description = description || "Delegate to #{agent_class.name}."
+
+        Class.new(OmniAgent::Tool) do
+          description tool_description
+
+          input do
+            string :input, description: "Input/question to send to the delegated agent."
+          end
+
+          define_method(:execute) do |input:|
+            forwarded_context = OmniAgent::Agent.__send__(:filter_forwarded_context, context, forward)
+            OmniAgent::Agent.__send__(:run_delegated_agent, agent_class, input, run_alias, forwarded_context)
+          end
+        end
+      end
+
       def with(context = nil, provider_override: nil, model_override: nil, options_override: {}, **context_keywords)
         merged_context = {}
         merged_context.merge!(context) if context.is_a?(Hash)
@@ -133,23 +165,6 @@ module OmniAgent
 
       def delegated_tool_const_name(as)
         as.to_s.split(/[_\s]+/).reject(&:empty?).map { |part| part[0].upcase + part[1..] }.join
-      end
-
-      def build_delegated_tool_class(agent_class, description:, run_alias:, forward:)
-        tool_description = description || "Delegate to #{agent_class.name}."
-
-        Class.new(OmniAgent::Tool) do
-          description tool_description
-
-          input do
-            string :input, description: "Input/question to send to the delegated agent."
-          end
-
-          define_method(:execute) do |input:|
-            forwarded_context = OmniAgent::Agent.__send__(:filter_forwarded_context, context, forward)
-            OmniAgent::Agent.__send__(:run_delegated_agent, agent_class, input, run_alias, forwarded_context)
-          end
-        end
       end
 
       def filter_forwarded_context(context, forward)
@@ -316,18 +331,7 @@ module OmniAgent
     end
 
     def available_tools
-      tool_namespace = "#{self.class.name}::Tools".safe_constantize
-
-      namespace_tools = if tool_namespace
-        tool_namespace.constants.filter_map do |const_name|
-          const = tool_namespace.const_get(const_name)
-          const if const.is_a?(Class) && const < OmniAgent::Tool
-        end
-      else
-        []
-      end
-
-      namespace_tools + self.class.configured_delegated_tool_classes
+      self.class.tool_classes
     end
 
     private
