@@ -1,0 +1,125 @@
+---
+sidebar_position: 3
+---
+
+# Transports and Clients
+
+OmniAgent supports both MCP transports:
+
+* **Streamable HTTP**: Mount the server in your routes. Remote clients connect to the URL.
+* **stdio**: The client starts your app as a subprocess and talks to it over stdin and stdout. Use it for local development.
+
+Both transports run the same server class.
+
+## Streamable HTTP
+
+Mount the server in `config/routes.rb`:
+
+```ruby
+mount OmniAgent::MCP::RackApp.new("SupportServer") => "/mcp/support"
+```
+
+Pass the class **name as a string**. The constant is looked up on every request, so code reloading works in development and the routes file does not load your tools before your agents.
+
+The endpoint is **stateless**:
+
+* Each `POST` carries one JSON-RPC message and gets one JSON response (`200`). Notifications get `202 Accepted` with no body.
+* There are no sessions (`Mcp-Session-Id`) and no server-sent event stream. `GET` and `DELETE` return `405 Method Not Allowed`. The MCP specification allows both choices.
+* Because there is no session state, the server works behind a load balancer with several Puma workers or hosts.
+
+| Status | When |
+|---|---|
+| `200` | JSON-RPC response (including tool errors with `isError: true`) |
+| `202` | Notification or client response accepted |
+| `400` | Invalid JSON (`-32700`), invalid JSON-RPC message, or unsupported `MCP-Protocol-Version` header |
+| `401` | Authentication failed |
+| `403` | `Origin` header not allowed |
+| `405` | Method other than `POST` |
+| `413` | Body larger than `mcp_max_request_bytes` |
+
+Supported protocol versions are `2025-11-25`, `2025-06-18` and `2025-03-26`.
+
+### Try It With curl
+
+```bash
+SUPPORT_MCP_TOKENS=secret bin/rails server
+
+curl -s localhost:3000/mcp/support \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer secret' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+## stdio
+
+Run the server from your Rails app root:
+
+```bash
+bundle exec omni_agent mcp SupportServer
+# or
+bin/rails "omni_agent:mcp[SupportServer]"
+```
+
+The process reads one JSON-RPC message per line from stdin and writes one response per line to stdout. Anything else written to stdout would corrupt the protocol, so OmniAgent redirects stdout to stderr after it boots. `puts` calls and loggers that write to stdout then go to stderr. The process exits when the client closes stdin.
+
+stdio does not use `authenticate`. See [stdio authentication](./authentication.mdx#stdio).
+
+## Connecting Clients
+
+### Claude Code
+
+Over HTTP:
+
+```bash
+claude mcp add --transport http support https://myapp.example.com/mcp/support \
+  --header "Authorization: Bearer $SUPPORT_MCP_TOKEN"
+```
+
+Over stdio (run from your app root):
+
+```bash
+claude mcp add support -- bundle exec omni_agent mcp SupportServer
+```
+
+### Claude Desktop
+
+Add the server to `claude_desktop_config.json`. Desktop does not start the process in your app root, so change to it first:
+
+```json
+{
+  "mcpServers": {
+    "support": {
+      "command": "bash",
+      "args": ["-lc", "cd /path/to/your/app && bundle exec omni_agent mcp SupportServer"]
+    }
+  }
+}
+```
+
+### Cursor
+
+Add the server to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "support": {
+      "url": "http://localhost:3000/mcp/support",
+      "headers": { "Authorization": "Bearer secret" }
+    }
+  }
+}
+```
+
+### MCP Inspector
+
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector) is useful for debugging. It can list tools and call them by hand:
+
+```bash
+npx @modelcontextprotocol/inspector --cli http://localhost:3000/mcp/support \
+  --transport http --header "Authorization: Bearer secret" --method tools/list
+
+npx @modelcontextprotocol/inspector --cli bundle exec omni_agent mcp SupportServer --method tools/list
+```
+
+The browser UI of the Inspector sends an `Origin` header. Add its origin to [`allowed_origins`](./authentication.mdx#origin-checks) to use it over HTTP.

@@ -18,6 +18,8 @@ OmniAgent.configure do |config|
   config.retry_base_delay = 0.5
   config.max_tool_iterations = 10
   config.max_delegation_depth = 5
+  config.mcp_allowed_origins = []
+  config.mcp_max_request_bytes = 1_048_576
 end
 ```
 
@@ -27,6 +29,8 @@ end
 * **`retry_base_delay`**: Base delay in seconds for retry backoff. Delay doubles per attempt (exponential backoff). Defaults to `0.5`.
 * **`max_tool_iterations`**: Max number of tool-call round trips the agent loop will perform before giving up on a final response. Defaults to `10`.
 * **`max_delegation_depth`**: Max nesting depth for [agent delegation](/docs/agent/delegation) chains before raising `OmniAgent::MaxDelegationDepthError`. Defaults to `5`.
+* **`mcp_allowed_origins`**: Browser origins (Strings or Regexps) allowed to call any [MCP server](/docs/mcp/authentication#origin-checks) over HTTP. Requests that send any other `Origin` get `403`. Defaults to `[]`.
+* **`mcp_max_request_bytes`**: Largest MCP HTTP request body accepted. Larger requests get `413`. Defaults to `1_048_576` (1 MiB).
 
 ## Retry Behavior
 
