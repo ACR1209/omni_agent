@@ -10,8 +10,14 @@ module OmniAgent
 
       # Accepts the server class or its name. Passing a String defers the
       # constant lookup to request time, which keeps routes reload-safe.
+      attr_reader :server
+
       def initialize(server)
         @server = server
+      end
+
+      def inspect
+        "#<#{self.class.name} #{server}>"
       end
 
       def call(env)
