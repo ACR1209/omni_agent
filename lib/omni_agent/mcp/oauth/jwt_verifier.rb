@@ -10,7 +10,7 @@ module OmniAgent
         CACHE_TTL = 300
         # A token signed with an unknown `kid` refetches the key set (key
         # rotation), but at most this often, so forged tokens cannot make every
-        # request call the authorization server.
+        # request call the authorization server. Also the wait after a failed fetch.
         MIN_REFRESH_INTERVAL = 30
 
         def self.require_jwt!
@@ -27,9 +27,12 @@ module OmniAgent
           @jwks_uri = jwks_uri
           @algorithms = Array(algorithms).map(&:to_s)
           @leeway = leeway
-          @mutex = Mutex.new
+          # Held only while fetching, so at most one fetch runs at a time.
+          # Reading the cached keys never takes it.
+          @fetch_mutex = Mutex.new
           @jwks = nil
           @fetched_at = nil
+          @failed_at = nil
         end
 
         def call(token, _request = nil)
@@ -50,28 +53,64 @@ module OmniAgent
         # Key loader for JWT.decode. Called with `kid_not_found: true` when the
         # token's `kid` is not in the cached set.
         def jwks(options = {})
-          @mutex.synchronize do
-            fetch_jwks if refresh?(options)
-            @jwks
+          if @jwks.nil?
+            load_initial_jwks
+          elsif refresh_due?(options) && @fetch_mutex.try_lock
+            # Only the thread that got the lock refreshes; the others keep
+            # using the cached keys instead of waiting for it.
+            begin
+              fetch_jwks
+            ensure
+              @fetch_mutex.unlock
+            end
           end
+
+          @jwks
         end
 
-        def refresh?(options)
-          return true if @jwks.nil?
+        # With no keys yet, concurrent requests wait for one shared fetch rather
+        # than each fetching in turn. After a failure they fail fast until
+        # MIN_REFRESH_INTERVAL has passed, so a down authorization server does
+        # not tie up every app thread on timeouts.
+        def load_initial_jwks
+          raise_unavailable if backing_off?
+
+          @fetch_mutex.synchronize do
+            next if @jwks
+            raise_unavailable if backing_off?
+
+            fetch_jwks
+          end
+
+          raise_unavailable if @jwks.nil?
+        end
+
+        def refresh_due?(options)
+          return false if backing_off?
 
           age = monotonic_now - @fetched_at
           age > CACHE_TTL || (options[:kid_not_found] && age > MIN_REFRESH_INTERVAL)
         end
 
         def fetch_jwks
-          @jwks = HTTPClient.get_json(OAuth.resolve(@jwks_uri))
+          keys = HTTPClient.get_json(OAuth.resolve(@jwks_uri))
+          # @fetched_at first: readers that see @jwks expect it to be set.
           @fetched_at = monotonic_now
+          @jwks = keys
+          @failed_at = nil
         rescue VerificationError => e
-          raise if @jwks.nil?
+          @failed_at = monotonic_now
+          fallback = @jwks ? "using cached keys" : "retrying in #{MIN_REFRESH_INTERVAL}s"
+          MCP.logger&.warn("[OmniAgent::MCP] Could not fetch JWKS, #{fallback}: #{e.message}")
+        end
 
-          # Keep serving the cached keys while the authorization server is down.
-          MCP.logger&.warn("[OmniAgent::MCP] Could not refresh JWKS, using cached keys: #{e.message}")
-          @fetched_at = monotonic_now
+        def backing_off?
+          failed_at = @failed_at
+          !failed_at.nil? && monotonic_now - failed_at < MIN_REFRESH_INTERVAL
+        end
+
+        def raise_unavailable
+          raise VerificationError, "JWKS from #{OAuth.resolve(@jwks_uri)} is unavailable"
         end
 
         def monotonic_now
