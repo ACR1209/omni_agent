@@ -87,7 +87,7 @@ authenticate :oauth, resource: -> { ENV.fetch("SUPPORT_MCP_URL") }, ...
 authenticate :oauth, ..., jwks_uri: "https://auth.example.com/.well-known/jwks.json"
 ```
 
-The signature, `exp`, `nbf` and `iss` are checked. Tokens must contain `exp` and `iss`. Only asymmetric algorithms (`RS*`, `PS*`, `ES*`) are accepted; change them with `algorithms:`. The key set is cached for 5 minutes. A token with an unknown `kid` refetches it (key rotation), at most every 30 seconds.
+The signature, `exp`, `nbf` and `iss` are checked. Tokens must contain `exp` and `iss`. Only asymmetric algorithms (`RS*`, `PS*`, `ES*`) are accepted; change them with `algorithms:`. The key set is cached for 5 minutes. A token with an unknown `kid` refetches it (key rotation), at most every 30 seconds. One request refreshes the keys while the others keep using the cached ones. If the authorization server cannot be reached, OmniAgent keeps using the cached keys, or, if it has none yet, rejects requests with `401` right away and tries again after 30 seconds.
 
 **Token introspection** ([RFC 7662](https://www.rfc-editor.org/rfc/rfc7662)), for opaque tokens. Every request asks the authorization server whether the token is active:
 
@@ -97,6 +97,38 @@ authenticate :oauth, ...,
                url: "https://auth.example.com/oauth/introspect",
                client_id: -> { Rails.application.credentials.mcp_client_id },
                client_secret: -> { Rails.application.credentials.mcp_client_secret }
+             }
+```
+
+:::warning Introspection responses must include `aud`
+
+Every token must name your server in `aud` (see below), but many introspection endpoints leave it out. Doorkeeper, for example, does not return it by default, so every request gets `401` and nothing explains why. Add it to the response. With Doorkeeper, use `custom_introspection_response`:
+
+```ruby
+# config/initializers/doorkeeper.rb
+Doorkeeper.configure do
+  custom_introspection_response do |_token, _context|
+    { aud: "https://app.example.com/mcp/support" }
+  end
+end
+```
+
+:::
+
+An MCP session sends many requests, and each one calls the introspection endpoint. If that becomes a problem, cache the result yourself with `verify_token:`. A revoked token keeps working until its cache entry expires, so keep the expiry short:
+
+```ruby
+introspector = OmniAgent::MCP::OAuth::IntrospectionVerifier.new(
+  url: "https://auth.example.com/oauth/introspect",
+  client_id: -> { Rails.application.credentials.mcp_client_id },
+  client_secret: -> { Rails.application.credentials.mcp_client_secret }
+)
+
+authenticate :oauth, ...,
+             verify_token: ->(token) {
+               Rails.cache.fetch("mcp_token/#{Digest::SHA256.hexdigest(token)}", expires_in: 1.minute) do
+                 introspector.call(token)
+               end
              }
 ```
 
@@ -112,6 +144,8 @@ authenticate :oauth, ...,
 ```
 
 Whatever the method, OmniAgent then checks the claims: `aud` must contain `resource:` (or `audience:`), `exp` and `nbf` must be current (30 seconds of clock skew allowed), `iss` (if present) must be one of `authorization_servers:`, and `scope` (or `scp`) must contain every scope in `scopes:`. If the authorization server cannot be reached, the request gets `401` and the error is logged.
+
+Exceptions raised by your own code, in `verify_token:` or in the block that returns the principal (for example a database error in `User.find_by`), are not caught. The request gets `500`, not `401`.
 
 ### The Principal and the Access Token
 
