@@ -3,7 +3,8 @@ require "active_support/security_utils"
 module OmniAgent
   module MCP
     class Authenticator
-      Result = Struct.new(:authenticated, :principal) do
+      # error and access_token are only set by `authenticate :oauth`.
+      Result = Struct.new(:authenticated, :principal, :error, :access_token) do
         def authenticated?
           authenticated == true
         end
@@ -21,7 +22,7 @@ module OmniAgent
         if authentication.nil?
           raise OmniAgent::MCPError,
                 "#{@server_class.name} does not declare authentication. " \
-                "Add `authenticate :bearer, tokens: ...`, `authenticate { |request| ... }`, " \
+                "Add `authenticate :bearer, tokens: ...`, `authenticate :oauth, ...`, `authenticate { |request| ... }`, " \
                 "or explicitly opt out with `authenticate :none`."
         end
 
@@ -30,6 +31,8 @@ module OmniAgent
           success(nil)
         when :bearer
           authenticate_bearer(request, authentication[:tokens])
+        when :oauth
+          authentication[:resource_server].authenticate(request)
         when :custom
           principal = authentication[:block].call(request)
           principal ? success(principal) : failure

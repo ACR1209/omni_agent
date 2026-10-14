@@ -180,6 +180,8 @@ Every MCP tool call sets `tool.context` to:
 { mcp_principal: principal, mcp_request: request } # request is nil over stdio
 ```
 
+With [`authenticate :oauth`](./authentication.mdx#oauth-21), it also includes `mcp_access_token`, the validated `OmniAgent::MCP::OAuth::AccessToken`.
+
 The `context` block merges extra keys. Use it to give tools that you share with agents the same keys that the agents give them:
 
 ```ruby

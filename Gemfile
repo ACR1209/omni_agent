@@ -27,4 +27,5 @@ group :development, :test do
   gem "webmock"
   gem "dotenv-rails"
   gem "openai", "~> 0.99.0"
+  gem "jwt"
 end
