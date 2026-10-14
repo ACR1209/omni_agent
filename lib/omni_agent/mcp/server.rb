@@ -50,8 +50,17 @@ module OmniAgent
           add_tool_declaration(type: :tool, tool_class: tool_class, name: as.to_s)
         end
 
-        def authenticate(strategy = nil, tokens: nil, &block)
-          @authentication = if block
+        def authenticate(strategy = nil, tokens: nil, **oauth_options, &block)
+          if strategy != :oauth && oauth_options.any?
+            raise ArgumentError, "unknown keywords for authenticate: #{oauth_options.keys.map(&:inspect).join(', ')}"
+          end
+
+          @authentication = if strategy == :oauth
+            raise ArgumentError, "authenticate :oauth does not take tokens:" unless tokens.nil?
+
+            # The block, if any, maps the validated access token to the principal.
+            { strategy: :oauth, resource_server: OAuth::ResourceServer.new(**oauth_options, &block) }
+          elsif block
             { strategy: :custom, block: block }
           elsif strategy == :none
             { strategy: :none }
@@ -60,7 +69,7 @@ module OmniAgent
 
             { strategy: :bearer, tokens: tokens }
           else
-            raise ArgumentError, "authenticate expects :bearer (with tokens:), :none, or a block"
+            raise ArgumentError, "authenticate expects :bearer (with tokens:), :oauth, :none, or a block"
           end
         end
 
@@ -92,6 +101,11 @@ module OmniAgent
         def configured_context_block; setting(:@context_block); end
         def configured_stdio_principal_block; setting(:@stdio_principal_block); end
         def configured_allowed_origins; list_setting(:@allowed_origins); end
+
+        def configured_oauth_resource_server
+          authentication = configured_authentication
+          authentication[:resource_server] if authentication && authentication[:strategy] == :oauth
+        end
 
         # Ordered { "ToolName" => tool_class }: for each server in the
         # inheritance chain, its <Server>::Tools namespace first, then its
@@ -203,12 +217,14 @@ module OmniAgent
         end
       end
 
-      attr_reader :principal, :request, :transport
+      # access_token is the OAuth::AccessToken for `authenticate :oauth`, nil otherwise.
+      attr_reader :principal, :request, :transport, :access_token
 
-      def initialize(principal: nil, request: nil, transport: :http)
+      def initialize(principal: nil, request: nil, transport: :http, access_token: nil)
         @principal = principal
         @request = request
         @transport = transport
+        @access_token = access_token
       end
 
       def visible_tools
@@ -227,6 +243,7 @@ module OmniAgent
 
       def tool_context
         base = { mcp_principal: principal, mcp_request: request }
+        base[:mcp_access_token] = access_token if access_token
         context_block = self.class.configured_context_block
         return base unless context_block
 

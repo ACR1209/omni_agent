@@ -213,5 +213,29 @@ RSpec.describe OmniAgent::MCP::Server do
     it "rejects unknown strategies" do
       expect { build_server { authenticate :basic } }.to raise_error(ArgumentError)
     end
+
+    it "builds an OAuth resource server for authenticate :oauth" do
+      server = build_server do
+        authenticate :oauth, resource: "https://app.example/mcp", authorization_servers: "https://auth.example",
+                             verify_token: ->(_token) { nil }
+      end
+
+      expect(server.configured_oauth_resource_server).to be_a(OmniAgent::MCP::OAuth::ResourceServer)
+    end
+
+    it "requires a verification method for OAuth" do
+      expect { build_server { authenticate :oauth, resource: "https://app.example/mcp", authorization_servers: "https://auth.example" } }
+        .to raise_error(ArgumentError, /jwks_uri:, introspection: or verify_token:/)
+    end
+
+    it "rejects tokens: for OAuth and OAuth options for other strategies" do
+      expect { build_server { authenticate :oauth, tokens: %w[a] } }.to raise_error(ArgumentError, /does not take tokens:/)
+      expect { build_server { authenticate :bearer, tokens: %w[a], resource: "https://app.example" } }
+        .to raise_error(ArgumentError, /unknown keywords for authenticate: :resource/)
+    end
+
+    it "has no OAuth resource server for other strategies" do
+      expect(build_server { authenticate :none }.configured_oauth_resource_server).to be_nil
+    end
   end
 end

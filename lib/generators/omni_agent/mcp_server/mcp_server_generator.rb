@@ -101,6 +101,10 @@ module OmniAgent
 
             # Comma-separated list of accepted bearer tokens.
             authenticate :bearer, tokens: -> { ENV.fetch("#{token_env_var}", "").split(",") }
+            # Or OAuth 2.1 with tokens from your authorization server (add `gem "jwt"`):
+            # authenticate :oauth, resource: "https://app.example.com/mcp/...",
+            #                      authorization_servers: "https://auth.example.com",
+            #                      jwks_uri: "https://auth.example.com/.well-known/jwks.json"
 
             # Hide tools per principal:
             # authorize_tool { |tool_class, principal| true }

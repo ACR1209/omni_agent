@@ -67,6 +67,7 @@ The endpoint is **stateless**:
 * Each `POST` carries one JSON-RPC message and gets one JSON response (`200`). Notifications get `202 Accepted` with no body.
 * There are no sessions (`Mcp-Session-Id`) and no server-sent event stream. `GET` and `DELETE` return `405 Method Not Allowed`. The MCP specification allows both choices.
 * Because there is no session state, the server works behind a load balancer with several Puma workers or hosts.
+* Servers that use [`authenticate :oauth`](./authentication.mdx#oauth-21) also answer `GET <endpoint>/.well-known/oauth-protected-resource` with their Protected Resource Metadata.
 
 | Status | When |
 |---|---|
@@ -74,7 +75,7 @@ The endpoint is **stateless**:
 | `202` | Notification or client response accepted |
 | `400` | Invalid JSON (`-32700`), invalid JSON-RPC message, or unsupported `MCP-Protocol-Version` header |
 | `401` | Authentication failed |
-| `403` | `Origin` header not allowed |
+| `403` | `Origin` header not allowed, or the OAuth token lacks a required scope (`error="insufficient_scope"`) |
 | `405` | Method other than `POST` |
 | `413` | Body larger than `mcp_max_request_bytes` |
 

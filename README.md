@@ -262,6 +262,10 @@ class SupportServer < OmniAgent::MCP::Server
 
 	authenticate :bearer, tokens: -> { ENV.fetch("SUPPORT_MCP_TOKENS", "").split(",") }
 	# or: authenticate { |request| User.find_by(api_token: request.bearer_token) }
+	# or OAuth 2.1 (MCP authorization spec), with tokens from your authorization server:
+	# authenticate :oauth, resource: "https://app.example.com/mcp/support",
+	#                      authorization_servers: "https://auth.example.com",
+	#                      jwks_uri: "https://auth.example.com/.well-known/jwks.json"
 
 	authorize_tool { |tool_class, principal| !tool_class.tags.include?(:admin) }
 	context { |principal, _request| { current_user: principal } }
