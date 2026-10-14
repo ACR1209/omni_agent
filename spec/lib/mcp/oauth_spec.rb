@@ -1,6 +1,7 @@
 require_relative "mcp_spec_helper"
 require "jwt"
 require "openssl"
+require "timeout"
 require "webmock/rspec"
 
 RSpec.describe OmniAgent::MCP::OAuth do
@@ -251,6 +252,78 @@ RSpec.describe OmniAgent::MCP::OAuth do
 
     it "rejects garbage" do
       expect(verifier.call("not-a-jwt")).to be_nil
+    end
+
+    context "when fetching the key set is slow or fails" do
+      let(:http) { OmniAgent::MCP::OAuth::HTTPClient }
+      let(:token) { sign(valid_claims) }
+      let(:entered) { Queue.new }
+      let(:release) { Queue.new }
+
+      before do
+        @clock = 0.0
+        allow(verifier).to receive(:monotonic_now) { @clock }
+      end
+
+      def block_fetches
+        allow(http).to receive(:get_json) do
+          entered << true
+          release.pop
+          jwks
+        end
+      end
+
+      it "serves the cached keys while another thread refreshes them" do
+        verifier.call(token)
+        @clock += described_class::CACHE_TTL + 1
+        block_fetches
+
+        refresher = Thread.new { verifier.call(token) }
+        entered.pop
+
+        expect(Timeout.timeout(5) { verifier.call(token) }).to include("sub" => "user-1")
+        release << true
+        expect(refresher.value).to include("sub" => "user-1")
+        expect(http).to have_received(:get_json).twice
+      end
+
+      it "shares one initial fetch between concurrent requests" do
+        block_fetches
+
+        first = Thread.new { verifier.call(token) }
+        entered.pop
+        second = Thread.new { verifier.call(token) }
+        Thread.pass until second.status == "sleep"
+        release << true
+
+        expect([ first.value, second.value ]).to all(include("sub" => "user-1"))
+        expect(http).to have_received(:get_json).once
+      end
+
+      it "fails fast after the first fetch fails, then retries after MIN_REFRESH_INTERVAL" do
+        allow(http).to receive(:get_json).and_raise(OmniAgent::MCP::OAuth::VerificationError, "down")
+
+        2.times { expect { verifier.call(token) }.to raise_error(OmniAgent::MCP::OAuth::VerificationError, /unavailable/) }
+        expect(http).to have_received(:get_json).once
+
+        @clock += described_class::MIN_REFRESH_INTERVAL + 1
+        allow(http).to receive(:get_json).and_return(jwks)
+
+        expect(verifier.call(token)).to include("sub" => "user-1")
+      end
+
+      it "keeps the cached keys when a refresh fails and retries after MIN_REFRESH_INTERVAL" do
+        verifier.call(token)
+        @clock += described_class::CACHE_TTL + 1
+        allow(http).to receive(:get_json).and_raise(OmniAgent::MCP::OAuth::VerificationError, "down")
+
+        2.times { expect(verifier.call(token)).to include("sub" => "user-1") }
+        expect(http).to have_received(:get_json).twice
+
+        @clock += described_class::MIN_REFRESH_INTERVAL + 1
+        verifier.call(token)
+        expect(http).to have_received(:get_json).exactly(3).times
+      end
     end
   end
 
