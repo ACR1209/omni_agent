@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.11](https://github.com/ACR1209/omni_agent/compare/omni_agent/v0.1.10...omni_agent/v0.1.11) (2026-10-15)
+
+
+### Features
+
+* **mcp:** add OAuth 2.1 authentication per the MCP authorization spec ([160c3d4](https://github.com/ACR1209/omni_agent/commit/160c3d47fb70272c58162359296c795a03b52219))
+
+
+### Bug Fixes
+
+* **mcp:** stop blocking requests while fetching the JWKS ([5074eb2](https://github.com/ACR1209/omni_agent/commit/5074eb2d939b2c1d6c365b15482cc9024f361527))
+
 ## [0.1.10](https://github.com/ACR1209/omni_agent/compare/omni_agent/v0.1.9...omni_agent/v0.1.10) (2026-10-09)
 
 
