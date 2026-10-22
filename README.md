@@ -8,6 +8,8 @@ tool schemas, and generation lifecycle callbacks.
 
 - `OmniAgent::Agent` runtime with provider abstraction and tool-calling loop
 - `OmniAgent::Tool` DSL with JSON-schema-style input definitions
+- Structured, validated agent output declared with the same DSL as tool input
+- Stock agents: ready-made agents shipped with the gem that projects subclass and customize
 - Prompt composition from ERB files in `app/agents/<agent_name>/`
 - Agent callbacks (`before_generation`, `after_generation`)
 - Agent and tool tags to support filtering strategies
@@ -107,6 +109,44 @@ module ResearchAgent::Tools
 	end
 end
 ```
+
+## Structured Output
+
+Declare an `output` block, using the same DSL as tool `input`, to get a validated object back instead of free text:
+
+```ruby
+class InvoiceAgent < OmniAgent::Agent
+	output do
+		string :invoice_number
+		number :total, min: 0
+		enum :currency, values: %w[USD EUR]
+	end
+end
+
+InvoiceAgent.new.run(invoice_text).structured_output
+# => { invoice_number: "A-1042", total: 120.5, currency: "USD" }
+```
+
+The schema is sent to the provider (as a `json_schema` `response_format` for OpenAI and Ollama), and the final answer is parsed and validated with the same rules as tool input. Invalid JSON or a schema mismatch raises `OmniAgent::StructuredOutputError`.
+
+## Stock Agents
+
+Stock agents are ready-made agents shipped with the gem under `OmniAgent::StockAgents`. Subclass one in your app and declare the output you need; the subclass keeps the stock prompt, model and tools:
+
+```bash
+rails generate omni_agent:stock_agent InvoiceOcr --from=ocr --fields=invoice_number:string total:number
+```
+
+```ruby
+class InvoiceOcr < OmniAgent::StockAgents::OCR
+	output do
+		string :invoice_number
+		number :total
+	end
+end
+```
+
+To add a stock agent to the gem itself, run `bin/rake "stock_agent:new[name]"` from the gem repository.
 
 ## Multi-Agent Delegation
 

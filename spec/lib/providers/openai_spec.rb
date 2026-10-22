@@ -56,6 +56,50 @@ RSpec.describe OmniAgent::Providers::OpenAI do
     described_class.new(api_key: "token", model: "gpt-test").chat(messages: messages, temperature: 0.3)
   end
 
+  it "sends an output schema as a json_schema response_format" do
+    messages = [ { role: "user", content: "Extract" } ]
+    output_schema = OmniAgent::Schema.build do
+      string :name
+      number :total
+    end
+
+    completions = double("completions")
+    chat = double("chat", completions: completions)
+    client_instance = instance_double(OpenAI::Client, chat: chat)
+    allow(OpenAI::Client).to receive(:new)
+      .with(api_key: "token")
+      .and_return(client_instance)
+    expect(completions).to receive(:create)
+      .with(
+        model: "gpt-test",
+        messages: messages,
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "structured_output", schema: output_schema.json_schema, strict: true }
+        }
+      )
+      .and_return({ "choices" => [ { "message" => { "content" => "{}" } } ] })
+
+    described_class.new(api_key: "token", model: "gpt-test").chat(messages: messages, output_schema: output_schema)
+  end
+
+  it "disables strict mode when the output schema has optional fields" do
+    output_schema = OmniAgent::Schema.build do
+      string :name
+      string :nickname, required: false
+    end
+
+    completions = double("completions")
+    chat = double("chat", completions: completions)
+    allow(OpenAI::Client).to receive(:new).and_return(instance_double(OpenAI::Client, chat: chat))
+    expect(completions).to receive(:create)
+      .with(hash_including(response_format: hash_including(json_schema: hash_including(strict: false))))
+      .and_return({ "choices" => [ { "message" => { "content" => "{}" } } ] })
+
+    described_class.new(api_key: "token", model: "gpt-test")
+      .chat(messages: [ { role: "user", content: "Extract" } ], output_schema: output_schema)
+  end
+
   it "raises when messages contain invalid roles" do
     provider = described_class.new(api_key: "token", model: "gpt-test")
 

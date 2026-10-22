@@ -1286,4 +1286,186 @@ RSpec.describe OmniAgent::Agent do
       expect(events.last.done?).to be(true)
     end
   end
+
+  describe ".output" do
+    let(:structured_provider_class) do
+      Class.new do
+        class << self
+          attr_accessor :content
+        end
+
+        attr_reader :model, :last_chat_options
+
+        def initialize(model: nil)
+          @model = model
+        end
+
+        def chat(messages:, tools: [], stream: nil, **options)
+          @last_chat_options = options
+          OmniAgent::Providers::Response.new(content: self.class.content, raw_response: {}, tool_calls: [])
+        end
+      end
+    end
+
+    let(:agent_class) do
+      Class.new(described_class) do
+        provider :structured_provider
+
+        output do
+          string :invoice_number
+          number :total, min: 0
+          enum :currency, values: %w[USD EUR]
+          array :line_items do
+            string :description
+          end
+        end
+      end
+    end
+
+    before do
+      allow(OmniAgent::Providers).to receive(:registry).and_return(structured_provider: structured_provider_class)
+    end
+
+    it "passes the output schema to the provider" do
+      structured_provider_class.content = '{"invoice_number":"A-1","total":10,"currency":"USD","line_items":[]}'
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      agent.run("Extract")
+
+      expect(agent.provider.last_chat_options[:output_schema]).to eq(agent_class.output_schema)
+      expect(agent_class.output_schema.json_schema[:required]).to eq(%w[invoice_number total currency line_items])
+    end
+
+    it "exposes the parsed and validated output as response.structured_output" do
+      structured_provider_class.content = '{"invoice_number":"A-1","total":10.5,"currency":"EUR","line_items":[{"description":"Paper"}],"ignored":1}'
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      response = agent.run("Extract")
+
+      expect(response.answer).to eq(structured_provider_class.content)
+      expect(response.structured_output).to eq(
+        invoice_number: "A-1",
+        total: 10.5,
+        currency: "EUR",
+        line_items: [ { description: "Paper" } ]
+      )
+    end
+
+    it "accepts JSON wrapped in a markdown code fence" do
+      structured_provider_class.content = "```json
+{\"invoice_number\":\"A-1\",\"total\":1,\"currency\":\"USD\",\"line_items\":[]}
+```"
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      expect(agent.run("Extract").structured_output[:invoice_number]).to eq("A-1")
+    end
+
+    it "raises StructuredOutputError when the response is not valid JSON" do
+      structured_provider_class.content = "Sorry, I cannot do that."
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      expect { agent.run("Extract") }.to raise_error(OmniAgent::StructuredOutputError, /invalid JSON/)
+    end
+
+    it "raises StructuredOutputError when the output does not match the schema" do
+      structured_provider_class.content = '{"invoice_number":"A-1","total":-3,"currency":"USD","line_items":[]}'
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      expect { agent.run("Extract") }.to raise_error(OmniAgent::StructuredOutputError, /total must be >= 0/)
+    end
+
+    it "makes structured output available to after_generation callbacks" do
+      structured_provider_class.content = '{"invoice_number":"A-1","total":1,"currency":"USD","line_items":[]}'
+      callback_agent_class = Class.new(agent_class) do
+        attr_reader :seen_output
+
+        after_generation :capture_output
+
+        def capture_output(payload)
+          @seen_output = payload[:response].structured_output
+        end
+      end
+      agent = callback_agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      agent.run("Extract")
+
+      expect(agent.seen_output[:invoice_number]).to eq("A-1")
+    end
+
+    it "does not send an output schema or parse output for agents without one" do
+      structured_provider_class.content = "plain text"
+      plain_agent = Class.new(described_class) { provider :structured_provider }.new
+      allow(plain_agent).to receive(:available_tools).and_return([])
+
+      response = plain_agent.run("Hello")
+
+      expect(plain_agent.provider.last_chat_options).not_to have_key(:output_schema)
+      expect(response.structured_output).to be_nil
+    end
+
+    it "is inherited by subclasses and can be overridden" do
+      inheriting_class = Class.new(agent_class)
+      overriding_class = Class.new(agent_class) do
+        output do
+          string :summary
+        end
+      end
+
+      expect(inheriting_class.output_schema).to eq(agent_class.output_schema)
+      expect(overriding_class.output_schema.properties.keys).to eq([ :summary ])
+      expect(agent_class.output_schema.properties.keys).to eq(%i[invoice_number total currency line_items])
+    end
+  end
+
+  describe "class configuration inheritance" do
+    it "inherits provider, model, options, tags and callbacks from the parent agent" do
+      parent_class = Class.new(described_class) do
+        provider :test_provider, model: "parent-model"
+        options temperature: 0.1
+        tags :parent
+        before_generation :parent_callback
+
+        def parent_callback; end
+      end
+      child_class = Class.new(parent_class) do
+        options max_tokens: 50
+        tags :child
+        before_generation :child_callback
+
+        def child_callback; end
+      end
+
+      expect(child_class.configured_provider_name).to eq(:test_provider)
+      expect(child_class.configured_provider_options).to eq(model: "parent-model")
+      expect(child_class.configured_model_options).to eq(temperature: 0.1, max_tokens: 50)
+      expect(child_class.tags).to eq(%i[parent child])
+      expect(child_class.configured_before_generation_callbacks).to eq(%i[parent_callback child_callback])
+      expect(parent_class.configured_model_options).to eq(temperature: 0.1)
+      expect(parent_class.tags).to eq([ :parent ])
+      expect(child_class.new.provider.model).to eq("parent-model")
+    end
+
+    it "lets a subclass switch to use_model when the parent declared a provider" do
+      parent_class = Class.new(described_class) { provider :test_provider }
+      child_class = Class.new(parent_class) { use_model "child-model" }
+
+      expect(child_class.configured_provider_name).to eq(:test_provider)
+      expect(child_class.new.provider.model).to eq("child-model")
+    end
+
+    it "inherits the parent's tools" do
+      stub_const("ParentToolsAgent", Class.new(described_class))
+      stub_const("ParentToolsAgent::Tools", Module.new)
+      stub_const("ParentToolsAgent::Tools::Lookup", Class.new(OmniAgent::Tool))
+      stub_const("ChildToolsAgent", Class.new(ParentToolsAgent))
+
+      expect(ChildToolsAgent.tool_classes).to eq([ ParentToolsAgent::Tools::Lookup ])
+    end
+  end
 end

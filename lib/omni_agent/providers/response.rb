@@ -1,7 +1,7 @@
 module OmniAgent
   module Providers
     class Response
-      attr_reader :content, :tool_calls, :raw_response, :raw_request, :generated_messages
+      attr_reader :content, :tool_calls, :raw_response, :raw_request, :generated_messages, :structured_output
 
       def initialize(content:, tool_calls: [], raw_response: nil, raw_request: nil, generated_messages: [])
         @content = content
@@ -21,6 +21,11 @@ module OmniAgent
 
       def with_generated_messages(messages)
         @generated_messages = Array(messages)
+        self
+      end
+
+      def with_structured_output(output)
+        @structured_output = output
         self
       end
     end

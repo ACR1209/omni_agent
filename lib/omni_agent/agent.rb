@@ -1,5 +1,9 @@
+require "json"
+
 module OmniAgent
   class Agent
+    DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant with access to local tools.".freeze
+
     attr_reader :provider
 
     module ImplicitRunEntrypoints
@@ -39,7 +43,7 @@ module OmniAgent
 
     class << self
       def provider(name, **options)
-        if configured_with_use_model?
+        if @configured_with_use_model == true
           raise OmniAgent::Error, "Cannot combine `provider` and `use_model` in the same agent. Use either `provider ..., model: ...` or `use_model ...`."
         end
 
@@ -52,7 +56,7 @@ module OmniAgent
       end
 
       def use_model(name)
-        if configured_provider_name || configured_provider_options.any?
+        if @provider_name || (@provider_options || {}).any?
           raise OmniAgent::Error, "Cannot combine `provider` and `use_model` in the same agent. Use either `provider ..., model: ...` or `use_model ...`."
         end
 
@@ -69,9 +73,20 @@ module OmniAgent
       end
 
       def tags(*tag_names)
-        return @configured_tags || [] if tag_names.empty?
+        return @configured_tags || inherited_setting(:tags) || [] if tag_names.empty?
 
         @configured_tags = (tags + normalize_tags(tag_names)).uniq
+      end
+
+      # Declares the structured output the agent must produce, using the same
+      # DSL as Tool.input. The final response is parsed and validated against
+      # it and exposed as response.structured_output.
+      def output(&block)
+        @output_schema = OmniAgent::Schema.build(&block) if block_given?
+      end
+
+      def output_schema
+        @output_schema || inherited_setting(:output_schema)
       end
 
       def run_aliases(*method_names)
@@ -96,7 +111,7 @@ module OmniAgent
       end
 
       def configured_delegated_tool_classes
-        @delegated_tool_classes || []
+        @delegated_tool_classes || inherited_setting(:configured_delegated_tool_classes) || []
       end
 
       def tool_classes
@@ -111,7 +126,7 @@ module OmniAgent
           []
         end
 
-        namespace_tools + configured_delegated_tool_classes
+        (namespace_tools + configured_delegated_tool_classes + (inherited_setting(:tool_classes) || [])).uniq
       end
 
       def build_delegated_tool_class(agent_class, description:, run_alias:, forward:)
@@ -144,12 +159,14 @@ module OmniAgent
         )
       end
 
-      def configured_provider_name; @provider_name; end
-      def configured_provider_options; @provider_options || {}; end
-      def configured_model_options; @model_options || {}; end
-      def configured_with_use_model?; @configured_with_use_model == true; end
-      def configured_before_generation_callbacks; @before_generation_callbacks || []; end
-      def configured_after_generation_callbacks; @after_generation_callbacks || []; end
+      # Class-level settings fall back to the parent agent, so subclasses
+      # (e.g. of a stock agent) keep its provider, options, callbacks and tools.
+      def configured_provider_name; @provider_name || inherited_setting(:configured_provider_name); end
+      def configured_provider_options; @provider_options || inherited_setting(:configured_provider_options) || {}; end
+      def configured_model_options; @model_options || inherited_setting(:configured_model_options) || {}; end
+      def configured_with_use_model?; @configured_with_use_model == true || inherited_setting(:configured_with_use_model?) == true; end
+      def configured_before_generation_callbacks; @before_generation_callbacks || inherited_setting(:configured_before_generation_callbacks) || []; end
+      def configured_after_generation_callbacks; @after_generation_callbacks || inherited_setting(:configured_after_generation_callbacks) || []; end
       def configured_tags; tags; end
 
       def inherited(subclass)
@@ -158,6 +175,12 @@ module OmniAgent
       end
 
       private
+
+      def inherited_setting(reader)
+        return nil unless superclass < OmniAgent::Agent
+
+        superclass.public_send(reader)
+      end
 
       def delegated_tools_module
         @delegated_tools_module ||= const_set(:DelegatedTools, Module.new)
@@ -245,6 +268,8 @@ module OmniAgent
       initial_messages_count = messages.length - 1
 
       filtered_tools = tool_filter(tools: available_tools, agent_tags: self.class.tags)
+      output_schema = self.class.output_schema
+      chat_options = output_schema ? @chat_options.merge(output_schema: output_schema) : @chat_options
       max_iterations = OmniAgent.configuration.max_tool_iterations
       iterations = 0
 
@@ -256,10 +281,11 @@ module OmniAgent
                 "Increase OmniAgent.configuration.max_tool_iterations if more tool calls are expected."
         end
 
-        response = provider.chat(messages: messages, tools: filtered_tools, stream: stream, **@chat_options)
+        response = provider.chat(messages: messages, tools: filtered_tools, stream: stream, **chat_options)
 
         if response.content && !response.tool_calls?
           messages << { role: "assistant", content: response.content }
+          response.with_structured_output(parse_structured_output(response.content, output_schema)) if output_schema
           set_after_generation_state(response: response, messages: messages, initial_messages_count: initial_messages_count)
           run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
           sync_context_from_instance_variables(context)
@@ -338,6 +364,21 @@ module OmniAgent
 
     def tool_filter(tools:, agent_tags:)
       tools
+    end
+
+    def parse_structured_output(content, schema)
+      payload = JSON.parse(strip_json_code_fence(content.to_s), symbolize_names: true)
+      schema.parse(payload)
+    rescue JSON::ParserError => e
+      raise OmniAgent::StructuredOutputError, "#{self.class.name || 'Agent'} returned invalid JSON for its output schema: #{e.message}"
+    rescue ArgumentError => e
+      raise OmniAgent::StructuredOutputError, "#{self.class.name || 'Agent'} output does not match its output schema: #{e.message}"
+    end
+
+    # Models without native structured output sometimes wrap JSON in a fence.
+    def strip_json_code_fence(content)
+      match = content.strip.match(/\A```(?:json)?\s*(.*?)\s*```\z/m)
+      match ? match[1] : content
     end
 
     def build_messages(input:, history:)
@@ -495,17 +536,8 @@ module OmniAgent
     end
 
     def system_prompt(context:, prompt_method: nil)
-      return "You are a helpful assistant with access to local tools." unless defined?(Rails)
-
-      class_name = self.class.name
-      return "You are a helpful assistant with access to local tools." if class_name.nil?
-
-      agent_dir = inflector_underscore(class_name)
-      base_file_path = Rails.root.join("app", "agents", agent_dir, "prompt.md.erb")
-      method_file_path = if prompt_method
-        prompt_method_name = inflector_underscore(prompt_method.to_s)
-        Rails.root.join("app", "agents", agent_dir, "#{prompt_method_name}.md.erb")
-      end
+      template_paths = prompt_template_paths(prompt_method)
+      return DEFAULT_SYSTEM_PROMPT if template_paths.empty?
 
       isolated_scope = Object.new
 
@@ -519,13 +551,26 @@ module OmniAgent
         isolated_scope.instance_variable_set(ivar, instance_variable_get(ivar))
       end
 
-      base_prompt = render_prompt_template(base_file_path, isolated_scope)
-      method_prompt = render_prompt_template(method_file_path, isolated_scope)
-
-      prompts = [ base_prompt, method_prompt ].compact.reject(&:empty?)
+      prompts = template_paths.map { |path| render_prompt_template(path, isolated_scope) }.compact.reject(&:empty?)
       return prompts.join("\n\n") if prompts.any?
 
-      "You are a helpful assistant with access to local tools."
+      DEFAULT_SYSTEM_PROMPT
+    end
+
+    # Ordered list of prompt templates to render; missing files are skipped.
+    def prompt_template_paths(prompt_method)
+      return [] unless defined?(Rails)
+
+      class_name = self.class.name
+      return [] if class_name.nil?
+
+      prompt_templates_in(Rails.root.join("app", "agents", inflector_underscore(class_name)), prompt_method)
+    end
+
+    def prompt_templates_in(directory, prompt_method)
+      paths = [ File.join(directory.to_s, "prompt.md.erb") ]
+      paths << File.join(directory.to_s, "#{inflector_underscore(prompt_method.to_s)}.md.erb") if prompt_method
+      paths
     end
 
     def render_prompt_template(file_path, isolated_scope)
