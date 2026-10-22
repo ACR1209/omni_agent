@@ -1,4 +1,5 @@
 require_relative "../../spec_helper"
+require_relative "../../../lib/omni_agent"
 require_relative "../../../lib/omni_agent/providers/base"
 require_relative "../../../lib/omni_agent/providers/response"
 require_relative "../../../lib/omni_agent/providers/mock"
@@ -27,6 +28,38 @@ RSpec.describe OmniAgent::Providers::Mock do
       )
 
       expect(response.content).to eq("Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
+    end
+
+    it "returns JSON that satisfies the output schema when one is given" do
+      output_schema = OmniAgent::Schema.build do
+        string :title, max_length: 5
+        integer :count, min: 2
+        number :score
+        boolean :approved
+        enum :status, values: %w[open closed]
+        array :tags, min_items: 2
+        array :items do
+          string :sku
+        end
+        hash :address do
+          string :city
+        end
+      end
+
+      response = described_class.new.chat(messages: [ { role: "user", content: "Extract" } ], output_schema: output_schema)
+      payload = JSON.parse(response.content, symbolize_names: true)
+
+      expect(payload).to eq(
+        title: "Lorem",
+        count: 2,
+        score: 0.0,
+        approved: true,
+        status: "open",
+        tags: [ described_class::LOREM_IPSUM, described_class::LOREM_IPSUM ],
+        items: [ { sku: described_class::LOREM_IPSUM } ],
+        address: { city: described_class::LOREM_IPSUM }
+      )
+      expect(output_schema.parse(payload)).to eq(payload)
     end
 
     it "raises when history messages are invalid" do

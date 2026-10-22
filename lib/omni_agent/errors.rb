@@ -7,6 +7,8 @@ module OmniAgent
     class MaxDelegationDepthError < Error; end
     class EvalAssertionError < Error; end
     class MCPError < Error; end
+    class StructuredOutputError < Error; end
+    class UnknownStockAgentError < Error; end
   end
 
   Error = Errors::Error
@@ -16,4 +18,6 @@ module OmniAgent
   MaxDelegationDepthError = Errors::MaxDelegationDepthError
   EvalAssertionError = Errors::EvalAssertionError
   MCPError = Errors::MCPError
+  StructuredOutputError = Errors::StructuredOutputError
+  UnknownStockAgentError = Errors::UnknownStockAgentError
 end

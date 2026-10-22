@@ -12,7 +12,7 @@ module OmniAgent
               "Please add `gem 'openai'` to your Gemfile."
       end
 
-      def chat(messages:, tools: [], stream: nil, **options)
+      def chat(messages:, tools: [], stream: nil, output_schema: nil, **options)
         validate_messages!(messages, allowed_roles: %i[system user assistant tool])
 
         messages = messages.map do |msg|
@@ -42,6 +42,7 @@ module OmniAgent
           messages: messages
         }
         payload[:tools] = openai_tools if openai_tools.any?
+        payload[:response_format] = format_response_format(output_schema) if output_schema
         payload.merge!(options) if options.any?
 
         response = if stream
@@ -105,6 +106,17 @@ module OmniAgent
             name: tool_class.name.split("::").last,
             description: tool_class.description,
             parameters: schema
+          }
+        }
+      end
+
+      def format_response_format(output_schema)
+        {
+          type: "json_schema",
+          json_schema: {
+            name: "structured_output",
+            schema: output_schema.json_schema,
+            strict: output_schema.strict_compatible?
           }
         }
       end

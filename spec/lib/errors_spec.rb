@@ -26,3 +26,15 @@ RSpec.describe OmniAgent::Errors do
     expect(OmniAgent::Errors::UnknownProviderError).to eq(OmniAgent::UnknownProviderError)
   end
 end
+
+RSpec.describe OmniAgent::StructuredOutputError do
+  it "inherits from OmniAgent::Error" do
+    expect(described_class).to be < OmniAgent::Error
+  end
+end
+
+RSpec.describe OmniAgent::UnknownStockAgentError do
+  it "inherits from OmniAgent::Error" do
+    expect(described_class).to be < OmniAgent::Error
+  end
+end
