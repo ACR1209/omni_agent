@@ -67,3 +67,30 @@ The example above is not allowed because both directives are defined in the same
 
 > **Note:** An agent can either override its provider using `provider` or override its model using `use_model`, but it cannot use both directives simultaneously.
 
+## Inheritance
+
+Subclasses inherit their parent agent's `provider`, model, `options`, tags, callbacks, tools and `output`, and can override any of them:
+
+```ruby
+class ApplicationAgent < OmniAgent::Agent
+  provider :openai, model: "gpt-4o"
+  options temperature: 0.2
+end
+
+class SupportAgent < ApplicationAgent
+  options max_tokens: 500 # merged: { temperature: 0.2, max_tokens: 500 }
+end
+```
+
+A subclass may call `use_model` even if its parent called `provider`. As on its own, `use_model` means "default provider + this model", so the subclass does not keep the parent's provider:
+
+```ruby
+class LocalSupportAgent < ApplicationAgent
+  use_model "llama3.1" # uses OmniAgent.configuration.default_provider, not :openai
+end
+```
+
+To keep the parent's provider and only change the model, repeat it: `provider :openai, model: "gpt-4o-mini"`.
+
+A tool in the subclass replaces a parent tool with the same name (for example `SupportAgent::Tools::Lookup` replaces `ApplicationAgent::Tools::Lookup`), and the same applies to `delegate_to ..., as:` names.
+

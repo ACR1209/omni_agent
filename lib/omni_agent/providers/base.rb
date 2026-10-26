@@ -13,6 +13,13 @@ module OmniAgent
         raise NotImplementedError, "Providers must implement #chat"
       end
 
+      # Providers that return true receive an agent's output schema as the
+      # `output_schema:` keyword of #chat. Otherwise the schema is only
+      # described in the system prompt.
+      def supports_structured_output?
+        false
+      end
+
       def validate_messages!(messages, allowed_roles:)
         unless messages.is_a?(Array)
           raise OmniAgent::Error, "messages must be an array"

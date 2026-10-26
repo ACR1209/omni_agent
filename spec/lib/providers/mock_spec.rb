@@ -59,7 +59,36 @@ RSpec.describe OmniAgent::Providers::Mock do
         items: [ { sku: described_class::LOREM_IPSUM } ],
         address: { city: described_class::LOREM_IPSUM }
       )
-      expect(output_schema.parse(payload)).to eq(payload)
+      expect(output_schema.parse_typed(payload)).to eq(payload)
+    end
+
+    it "picks a value at or below a negative maximum" do
+      output_schema = OmniAgent::Schema.build do
+        integer :offset, max: -2
+        number :delta, max: -0.5
+      end
+
+      response = described_class.new.chat(messages: [ { role: "user", content: "Extract" } ], output_schema: output_schema)
+
+      expect(JSON.parse(response.content, symbolize_names: true)).to eq(offset: -2, delta: -0.5)
+    end
+
+    it "reports structured output that a placeholder value can't satisfy" do
+      patterned = OmniAgent::Schema.build { string :code, pattern: /\A[A-Z]{3}\z/ }
+      validated = OmniAgent::Schema.build { string :email, validate: ->(value) { value.include?("@") } }
+      resolving = OmniAgent::Schema.build { polymorphic :owner, types: [ "User" ], resolve: true }
+      messages = [ { role: "user", content: "Extract" } ]
+
+      expect { described_class.new.chat(messages: messages, output_schema: patterned) }
+        .to raise_error(OmniAgent::Error, /can't generate structured output for `code` because its value must match the pattern/)
+      expect { described_class.new.chat(messages: messages, output_schema: validated) }
+        .to raise_error(OmniAgent::Error, /`email` because its validate: proc rejects the placeholder/)
+      expect { described_class.new.chat(messages: messages, output_schema: resolving) }
+        .to raise_error(OmniAgent::Error, /`owner` because it is polymorphic with resolve: true/)
+    end
+
+    it "supports structured output" do
+      expect(described_class.new.supports_structured_output?).to be(true)
     end
 
     it "raises when history messages are invalid" do

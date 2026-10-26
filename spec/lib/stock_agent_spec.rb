@@ -30,6 +30,7 @@ RSpec.describe OmniAgent::StockAgent do
       attr_reader :model
 
       define_method(:initialize) { |model: nil| @model = model }
+      define_method(:supports_structured_output?) { true }
 
       define_method(:chat) do |messages:, tools: [], stream: nil, **options|
         captured_state[:system_prompt] = messages.first[:content]

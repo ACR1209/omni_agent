@@ -34,6 +34,10 @@ RSpec.describe OmniAgent::Providers::OpenAI do
     expect(result.raw_request).to eq(model: "gpt-test", messages: messages)
   end
 
+  it "supports structured output" do
+    expect(described_class.new(api_key: "token").supports_structured_output?).to be(true)
+  end
+
   it "uses gpt-4o-mini as the default model" do
     provider = described_class.new(api_key: "token")
 

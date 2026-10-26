@@ -43,6 +43,29 @@ RSpec.describe OmniAgent::Schema do
       expect { schema.parse(name: "Ana", status: "paid", total: 5_000) }.to raise_error(ArgumentError, /invalid value for total/)
     end
 
+    it "checks top-level types only in #parse_typed" do
+      typed = described_class.build do
+        string :name
+        integer :count
+        number :total
+        boolean :paid
+        array :tags
+        hash :meta
+        string :nickname, required: false
+      end
+      valid = { name: "Ana", count: 1, total: 2, paid: false, tags: [], meta: {}, nickname: nil }
+
+      expect(typed.parse_typed(valid)).to eq(valid.except(:nickname))
+      expect(typed.parse(valid.merge(count: "1"))).to include(count: "1")
+      expect { typed.parse_typed(valid.merge(count: "1")) }
+        .to raise_error(ArgumentError, /count must be of type integer, got "1"/)
+      expect { typed.parse_typed(valid.merge(count: 1.5)) }.to raise_error(ArgumentError, /count must be of type integer/)
+      expect { typed.parse_typed(valid.merge(paid: "false")) }.to raise_error(ArgumentError, /paid must be of type boolean/)
+      expect { typed.parse_typed(valid.merge(tags: "a")) }.to raise_error(ArgumentError, /tags must be of type array/)
+      expect { typed.parse_typed(valid.merge(meta: [])) }.to raise_error(ArgumentError, /meta must be of type object/)
+      expect { typed.parse_typed(valid.merge(name: nil)) }.to raise_error(ArgumentError, /name must be of type string, got nil/)
+    end
+
     it "rejects values that are not an object" do
       expect { schema.parse([ 1, 2 ]) }.to raise_error(ArgumentError, /expected an object, got Array/)
     end
