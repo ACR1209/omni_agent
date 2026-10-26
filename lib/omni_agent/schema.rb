@@ -5,6 +5,15 @@ module OmniAgent
   class Schema
     STRICT_UNSUPPORTED_KEYWORDS = %i[minLength maxLength].freeze
 
+    TYPE_CHECKS = {
+      "string" => ->(value) { value.is_a?(String) },
+      "integer" => ->(value) { value.is_a?(Integer) },
+      "number" => ->(value) { value.is_a?(Numeric) },
+      "boolean" => ->(value) { value == true || value == false },
+      "array" => ->(value) { value.is_a?(Array) },
+      "object" => ->(value) { value.is_a?(Hash) }
+    }.freeze
+
     attr_reader :properties, :required, :validators, :polymorphics
 
     def self.build(&block)
@@ -45,6 +54,18 @@ module OmniAgent
     # Filters unknown keys, validates the rest, and returns a symbol-keyed hash.
     # Raises ArgumentError when validation fails.
     def parse(values)
+      parse_values(values, check_types: false)
+    end
+
+    # Like #parse, but top-level values must also match their declared JSON
+    # type, and nulls for optional fields are treated as absent.
+    def parse_typed(values)
+      parse_values(values, check_types: true)
+    end
+
+    private
+
+    def parse_values(values, check_types:)
       raise ArgumentError, "expected an object, got #{values.class}" unless values.is_a?(Hash)
 
       kwargs = values.transform_keys(&:to_sym)
@@ -52,6 +73,7 @@ module OmniAgent
       filtered = kwargs.slice(*valid_keys)
 
       validate_required!(filtered)
+      validate_types!(filtered) if check_types
       validate_enums!(filtered)
       validate_constraints!(filtered)
       run_custom_validators!(filtered)
@@ -59,8 +81,6 @@ module OmniAgent
 
       filtered
     end
-
-    private
 
     def strict_object?(schema)
       return false unless schema[:additionalProperties] == false
@@ -86,6 +106,21 @@ module OmniAgent
       return if missing.empty?
 
       raise ArgumentError, "missing required argument(s): #{missing.join(', ')}"
+    end
+
+    def validate_types!(kwargs)
+      required_keys = required.map(&:to_sym)
+      kwargs.reject! { |key, value| value.nil? && !required_keys.include?(key) }
+
+      properties.each do |name, property|
+        key = name.to_sym
+        next unless kwargs.key?(key)
+
+        type_check = TYPE_CHECKS[property[:type]]
+        next if type_check.nil? || type_check.call(kwargs[key])
+
+        raise ArgumentError, "#{name} must be of type #{property[:type]}, got #{kwargs[key].inspect}"
+      end
     end
 
     def validate_enums!(kwargs)

@@ -126,7 +126,10 @@ module OmniAgent
           []
         end
 
-        (namespace_tools + configured_delegated_tool_classes + (inherited_setting(:tool_classes) || [])).uniq
+        # The model calls tools by simple name, so a subclass tool or a later
+        # delegate_to with the same name replaces the inherited one.
+        delegated_tools = configured_delegated_tool_classes.reverse.uniq { |tool| tool_call_name(tool) }.reverse
+        (namespace_tools + delegated_tools + (inherited_setting(:tool_classes) || [])).uniq { |tool| tool_call_name(tool) }
       end
 
       def build_delegated_tool_class(agent_class, description:, run_alias:, forward:)
@@ -161,7 +164,15 @@ module OmniAgent
 
       # Class-level settings fall back to the parent agent, so subclasses
       # (e.g. of a stock agent) keep its provider, options, callbacks and tools.
-      def configured_provider_name; @provider_name || inherited_setting(:configured_provider_name); end
+      # A class's own `use_model` means "default provider + this model", so it
+      # does not inherit the parent's provider name.
+      def configured_provider_name
+        return @provider_name if @provider_name
+        return nil if @configured_with_use_model == true
+
+        inherited_setting(:configured_provider_name)
+      end
+
       def configured_provider_options; @provider_options || inherited_setting(:configured_provider_options) || {}; end
       def configured_model_options; @model_options || inherited_setting(:configured_model_options) || {}; end
       def configured_with_use_model?; @configured_with_use_model == true || inherited_setting(:configured_with_use_model?) == true; end
@@ -180,6 +191,10 @@ module OmniAgent
         return nil unless superclass < OmniAgent::Agent
 
         superclass.public_send(reader)
+      end
+
+      def tool_call_name(tool)
+        tool.name ? tool.name.split("::").last : tool
       end
 
       def delegated_tools_module
@@ -264,12 +279,19 @@ module OmniAgent
       sync_context_from_instance_variables(context)
 
       messages.replace(build_messages(input: input, history: context[:history]))
+      output_schema = self.class.output_schema
+      native_output = output_schema && provider_supports_structured_output?
+      chat_options = native_output ? @chat_options.merge(output_schema: output_schema) : @chat_options
+
       messages[0][:content] = system_prompt(context: context, prompt_method: prompt_method)
+      # Providers without native structured output (and non-strict schemas,
+      # which the model only treats as guidance) also get the schema in the prompt.
+      if output_schema && !(native_output && output_schema.strict_compatible?)
+        messages[0][:content] = "#{messages[0][:content]}\n\n#{structured_output_instructions(output_schema)}"
+      end
       initial_messages_count = messages.length - 1
 
       filtered_tools = tool_filter(tools: available_tools, agent_tags: self.class.tags)
-      output_schema = self.class.output_schema
-      chat_options = output_schema ? @chat_options.merge(output_schema: output_schema) : @chat_options
       max_iterations = OmniAgent.configuration.max_tool_iterations
       iterations = 0
 
@@ -285,7 +307,7 @@ module OmniAgent
 
         if response.content && !response.tool_calls?
           messages << { role: "assistant", content: response.content }
-          response.with_structured_output(parse_structured_output(response.content, output_schema)) if output_schema
+          response.with_structured_output(parse_structured_output(response, output_schema)) if output_schema
           set_after_generation_state(response: response, messages: messages, initial_messages_count: initial_messages_count)
           run_after_generation_callbacks(input: input, context: context, messages: messages, response: response)
           sync_context_from_instance_variables(context)
@@ -366,13 +388,33 @@ module OmniAgent
       tools
     end
 
-    def parse_structured_output(content, schema)
-      payload = JSON.parse(strip_json_code_fence(content.to_s), symbolize_names: true)
-      schema.parse(payload)
+    def provider_supports_structured_output?
+      provider.respond_to?(:supports_structured_output?) && provider.supports_structured_output?
+    end
+
+    def structured_output_instructions(schema)
+      "Respond only with a JSON object that matches this JSON schema, without any other text:\n" \
+        "#{JSON.pretty_generate(schema.json_schema)}"
+    end
+
+    def parse_structured_output(response, schema)
+      payload = JSON.parse(strip_json_code_fence(response.content.to_s), symbolize_names: true)
+      schema.parse_typed(payload)
     rescue JSON::ParserError => e
-      raise OmniAgent::StructuredOutputError, "#{self.class.name || 'Agent'} returned invalid JSON for its output schema: #{e.message}"
+      raise_structured_output_error("returned invalid JSON for its output schema: #{e.message}", response)
     rescue ArgumentError => e
-      raise OmniAgent::StructuredOutputError, "#{self.class.name || 'Agent'} output does not match its output schema: #{e.message}"
+      raise_structured_output_error("output does not match its output schema: #{e.message}", response)
+    rescue StandardError => e
+      # e.g. a polymorphic `resolve: true` field whose record can't be found
+      raise_structured_output_error("output could not be resolved: #{e.class}: #{e.message}", response)
+    end
+
+    def raise_structured_output_error(reason, response)
+      raise OmniAgent::StructuredOutputError.new(
+        "#{self.class.name || 'Agent'} #{reason}",
+        content: response.content,
+        response: response
+      )
     end
 
     # Models without native structured output sometimes wrap JSON in a fence.

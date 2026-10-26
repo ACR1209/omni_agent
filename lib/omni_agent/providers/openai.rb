@@ -56,6 +56,10 @@ module OmniAgent
         raise OmniAgent::Error, "Error during #{provider_label} chat: #{e.message}"
       end
 
+      def supports_structured_output?
+        true
+      end
+
       protected
 
       def provider_label

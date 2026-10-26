@@ -1294,15 +1294,28 @@ RSpec.describe OmniAgent::Agent do
           attr_accessor :content
         end
 
-        attr_reader :model, :last_chat_options
+        attr_reader :model, :last_chat_options, :last_messages
 
         def initialize(model: nil)
           @model = model
         end
 
+        def supports_structured_output?
+          true
+        end
+
         def chat(messages:, tools: [], stream: nil, **options)
+          @last_messages = messages
           @last_chat_options = options
           OmniAgent::Providers::Response.new(content: self.class.content, raw_response: {}, tool_calls: [])
+        end
+      end
+    end
+
+    let(:prompt_only_provider_class) do
+      Class.new(structured_provider_class) do
+        def supports_structured_output?
+          false
         end
       end
     end
@@ -1323,10 +1336,11 @@ RSpec.describe OmniAgent::Agent do
     end
 
     before do
-      allow(OmniAgent::Providers).to receive(:registry).and_return(structured_provider: structured_provider_class)
+      allow(OmniAgent::Providers).to receive(:registry)
+        .and_return(structured_provider: structured_provider_class, prompt_only_provider: prompt_only_provider_class)
     end
 
-    it "passes the output schema to the provider" do
+    it "passes the output schema to providers that support structured output" do
       structured_provider_class.content = '{"invoice_number":"A-1","total":10,"currency":"USD","line_items":[]}'
       agent = agent_class.new
       allow(agent).to receive(:available_tools).and_return([])
@@ -1335,6 +1349,40 @@ RSpec.describe OmniAgent::Agent do
 
       expect(agent.provider.last_chat_options[:output_schema]).to eq(agent_class.output_schema)
       expect(agent_class.output_schema.json_schema[:required]).to eq(%w[invoice_number total currency line_items])
+      expect(agent.provider.last_messages.first[:content]).not_to include("JSON schema")
+    end
+
+    it "describes the schema in the system prompt for providers without structured output support" do
+      prompt_only_provider_class.content = '{"invoice_number":"A-1","total":10,"currency":"USD","line_items":[]}'
+      agent = Class.new(agent_class) { provider :prompt_only_provider }.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      response = agent.run("Extract")
+
+      expect(agent.provider.last_chat_options).not_to have_key(:output_schema)
+      expect(agent.provider.last_messages.first[:content]).to include(
+        "Respond only with a JSON object that matches this JSON schema",
+        '"invoice_number"'
+      )
+      expect(response.structured_output[:invoice_number]).to eq("A-1")
+    end
+
+    it "also describes non-strict schemas in the system prompt" do
+      structured_provider_class.content = '{"summary":"ok"}'
+      agent = Class.new(described_class) do
+        provider :structured_provider
+
+        output do
+          string :summary
+          string :notes, required: false
+        end
+      end.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      agent.run("Extract")
+
+      expect(agent.provider.last_chat_options[:output_schema]).to be_a(OmniAgent::Schema)
+      expect(agent.provider.last_messages.first[:content]).to include('"notes"')
     end
 
     it "exposes the parsed and validated output as response.structured_output" do
@@ -1354,9 +1402,7 @@ RSpec.describe OmniAgent::Agent do
     end
 
     it "accepts JSON wrapped in a markdown code fence" do
-      structured_provider_class.content = "```json
-{\"invoice_number\":\"A-1\",\"total\":1,\"currency\":\"USD\",\"line_items\":[]}
-```"
+      structured_provider_class.content = "```json\n{\"invoice_number\":\"A-1\",\"total\":1,\"currency\":\"USD\",\"line_items\":[]}\n```"
       agent = agent_class.new
       allow(agent).to receive(:available_tools).and_return([])
 
@@ -1377,6 +1423,40 @@ RSpec.describe OmniAgent::Agent do
       allow(agent).to receive(:available_tools).and_return([])
 
       expect { agent.run("Extract") }.to raise_error(OmniAgent::StructuredOutputError, /total must be >= 0/)
+    end
+
+    it "raises StructuredOutputError when a top-level value has the wrong type" do
+      structured_provider_class.content = '{"invoice_number":"A-1","total":"120.5","currency":"USD","line_items":[]}'
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      expect { agent.run("Extract") }
+        .to raise_error(OmniAgent::StructuredOutputError, /total must be of type number, got "120.5"/)
+    end
+
+    it "keeps the raw content and response on StructuredOutputError" do
+      structured_provider_class.content = "Sorry, I cannot do that."
+      agent = agent_class.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      expect { agent.run("Extract") }.to raise_error(OmniAgent::StructuredOutputError) { |error|
+        expect(error.content).to eq("Sorry, I cannot do that.")
+        expect(error.response.content).to eq("Sorry, I cannot do that.")
+      }
+    end
+
+    it "wraps failures while resolving the output in StructuredOutputError" do
+      structured_provider_class.content = '{"owner_type":"MissingOwnerModel","owner_id":"1"}'
+      agent = Class.new(described_class) do
+        provider :structured_provider
+
+        output do
+          polymorphic :owner, types: [ "MissingOwnerModel" ], resolve: true
+        end
+      end.new
+      allow(agent).to receive(:available_tools).and_return([])
+
+      expect { agent.run("Extract") }.to raise_error(OmniAgent::StructuredOutputError, /could not be resolved: NameError/)
     end
 
     it "makes structured output available to after_generation callbacks" do
@@ -1451,12 +1531,19 @@ RSpec.describe OmniAgent::Agent do
       expect(child_class.new.provider.model).to eq("parent-model")
     end
 
-    it "lets a subclass switch to use_model when the parent declared a provider" do
-      parent_class = Class.new(described_class) { provider :test_provider }
-      child_class = Class.new(parent_class) { use_model "child-model" }
+    it "uses the default provider when a subclass calls use_model, like use_model on its own" do
+      default_provider_class = Class.new(provider_class)
+      allow(OmniAgent::Providers).to receive(:registry)
+        .and_return(test_provider: provider_class, default_test_provider: default_provider_class)
+      OmniAgent.configure { |config| config.default_provider = :default_test_provider }
 
-      expect(child_class.configured_provider_name).to eq(:test_provider)
-      expect(child_class.new.provider.model).to eq("child-model")
+      parent_class = Class.new(described_class) { provider :test_provider, model: "parent-model" }
+      child_class = Class.new(parent_class) { use_model "child-model" }
+      agent = child_class.new
+
+      expect(child_class.configured_provider_name).to be_nil
+      expect(agent.provider).to be_a(default_provider_class)
+      expect(agent.provider.model).to eq("child-model")
     end
 
     it "inherits the parent's tools" do
@@ -1466,6 +1553,30 @@ RSpec.describe OmniAgent::Agent do
       stub_const("ChildToolsAgent", Class.new(ParentToolsAgent))
 
       expect(ChildToolsAgent.tool_classes).to eq([ ParentToolsAgent::Tools::Lookup ])
+    end
+
+    it "lets a subclass tool replace a parent tool with the same name" do
+      stub_const("ParentOverrideAgent", Class.new(described_class))
+      stub_const("ParentOverrideAgent::Tools", Module.new)
+      stub_const("ParentOverrideAgent::Tools::Extract", Class.new(OmniAgent::Tool))
+      stub_const("ParentOverrideAgent::Tools::Lookup", Class.new(OmniAgent::Tool))
+      stub_const("ChildOverrideAgent", Class.new(ParentOverrideAgent))
+      stub_const("ChildOverrideAgent::Tools", Module.new)
+      stub_const("ChildOverrideAgent::Tools::Extract", Class.new(OmniAgent::Tool))
+
+      expect(ChildOverrideAgent.tool_classes)
+        .to contain_exactly(ChildOverrideAgent::Tools::Extract, ParentOverrideAgent::Tools::Lookup)
+    end
+
+    it "lets a subclass delegate_to replace a parent delegated tool with the same name" do
+      stub_const("FirstHelperAgent", Class.new(described_class))
+      stub_const("SecondHelperAgent", Class.new(described_class))
+      stub_const("ParentDelegatingAgent", Class.new(described_class))
+      ParentDelegatingAgent.delegate_to FirstHelperAgent, as: :helper
+      stub_const("ChildDelegatingAgent", Class.new(ParentDelegatingAgent))
+      ChildDelegatingAgent.delegate_to SecondHelperAgent, as: :helper
+
+      expect(ChildDelegatingAgent.tool_classes).to eq([ ChildDelegatingAgent::DelegatedTools::Helper ])
     end
   end
 end

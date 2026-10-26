@@ -7,7 +7,16 @@ module OmniAgent
     class MaxDelegationDepthError < Error; end
     class EvalAssertionError < Error; end
     class MCPError < Error; end
-    class StructuredOutputError < Error; end
+    # Carries the raw model output so callers can log, retry or repair it.
+    class StructuredOutputError < Error
+      attr_reader :content, :response
+
+      def initialize(message = nil, content: nil, response: nil)
+        super(message)
+        @content = content
+        @response = response
+      end
+    end
     class UnknownStockAgentError < Error; end
   end
 
