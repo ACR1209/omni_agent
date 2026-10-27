@@ -65,9 +65,17 @@ module OmniAgent
         "[#{label.join(' › ')}] #{chunk.try(:context) || chunk.content}"
       end
 
-      # Ingests records that have no chunks yet, or every record with force: true.
+      # Ingests records that have no chunks yet, or every record with
+      # force: true. Records no loader can read are skipped and returned as
+      # { id => error message }.
       def ingest_all(force: false)
-        (force ? all : all.where.missing(:chunks)).find_each(&:ingest!)
+        skipped = {}
+        (force ? all : all.where.missing(:chunks)).find_each do |record|
+          record.ingest!
+        rescue OmniAgent::UnsupportedDocumentError => e
+          skipped[record.id] = e.message
+        end
+        skipped
       end
     end
 
