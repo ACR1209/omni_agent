@@ -4,7 +4,7 @@ sidebar_position: 7.5
 
 # Retrieval-Augmented Generation (RAG)
 
-RAG lets an agent answer from your own data: it searches your records for the passages relevant to a question and gives them to the model. Omni Agent keeps the vectors in your own database (or Meilisearch) and turns any searchable model into an agent tool.
+RAG lets an agent answer from your own data: it searches your records for the passages relevant to a question and gives them to the model. Omni Agent keeps the vectors in your own database (or Meilisearch) and turns any searchable model into an agent tool. Records are searched whole with [`has_embedding`](#has_embedding), and files or long text in chunks with [`has_chunks`](#documents).
 
 ## Quick Start
 
@@ -75,7 +75,7 @@ config.active_job.queue_adapter = :sidekiq
 If you use Sidekiq only through `Sidekiq::Job` and never set `queue_adapter`, ActiveJob falls back to `:async`: jobs run in threads inside your web process and are lost on restart.
 :::
 
-Set the queue and other options for every embed job in the initializer, then override them per model:
+Set the queue and other options for every embed job in the initializer, then override them per model. They also apply to the jobs that [ingest documents](#documents):
 
 ```ruby
 # config/initializers/omni_agent.rb
@@ -142,6 +142,119 @@ output do
   array :source_ids, items_type: "integer"
 end
 ```
+
+## Documents
+
+To answer from files (PDFs, Markdown, HTML) or long text, split them into chunks and search the chunks:
+
+```bash
+rails generate omni_agent:chunks Document file
+bin/rails active_storage:install # if you haven't
+bin/rails db:migrate
+```
+
+```ruby
+class Document < ApplicationRecord
+  has_one_attached :file
+  has_chunks :file
+end
+
+class SupportAgent < OmniAgent::Agent
+  searches Document, scope: ->(context) { where(account_id: context[:account_id]) }
+end
+
+Document.create!(account_id: 1, file: params[:file]) # read, split and embedded in a background job
+```
+
+When the source changes, `OmniAgent::IngestJob` reads it into text, splits it, embeds the chunks in batches and replaces the document's chunks. They're stored in a `DocumentChunk` model that `belongs_to :document` and uses `has_embedding :content`, so every [store](#supported-stores) `has_embedding` supports works.
+
+The source can be:
+
+* An ActiveStorage attachment (`has_one_attached`)
+* A text column, such as Markdown kept in the database
+* Rich text (`has_rich_text`), read as plain text
+* Any method that returns a String or an IO
+
+### Loaders
+
+A loader turns a document into text. By default (`as: :auto`), the format is detected from the file's content type, then its extension, then its first bytes:
+
+| Loader | Reads | Needs |
+| --- | --- | --- |
+| `:pdf` | `.pdf` files with a text layer | `gem "pdf-reader"` |
+| `:html` | `.html`, `.htm`: the visible text, without scripts or styles | — |
+| `:markdown` | `.md`, `.markdown`, `.mdx`, as they are | — |
+| `:text` | `.txt`, `.csv`, any `text/*` type, and any file that doesn't look binary | — |
+
+Files no loader can read (a zip, an image) are skipped with a warning in the log, and never fail the save. To accept only one format, enforce its loader. Other files are then rejected by validation when the record is saved:
+
+```ruby
+has_chunks :file, as: :pdf # "File must be a PDF file"
+```
+
+For other formats, pass any object that responds to `call(io, filename:, content_type:)` and returns a String:
+
+```ruby
+has_chunks :file, as: ->(io, **) { Docx::Document.open(io).text }
+```
+
+To have auto-detection use it too, register it in the initializer with a `handles?` method:
+
+```ruby
+class DocxLoader
+  def self.handles?(filename:, content_type:)
+    File.extname(filename.to_s) == ".docx"
+  end
+
+  def self.call(io, **)
+    Docx::Document.open(io).text
+  end
+end
+
+OmniAgent.configure do |config|
+  config.document_loaders = { docx: DocxLoader } # tried before the built-in loaders
+end
+```
+
+:::note
+Scanned PDFs are images, with no text to read, so they produce no chunks. Run them through OCR in a custom loader.
+:::
+
+### Chunkers
+
+| Chunker | Splits |
+| --- | --- |
+| `:recursive` (default) | On the coarsest boundary that fits: headings, then paragraphs, lines, sentences, words. Each chunk starts with the end of the previous one (`overlap`), so a sentence cut at a boundary is still found. |
+| `:markdown` | One chunk per Markdown section, tagged with its heading path (`Billing › Refunds`). Long sections are split further. |
+| `:hierarchical` | Small chunks for precise matching, each carrying its whole section. The search matches the small chunk, and the agent reads the section around it. |
+
+```ruby
+has_chunks :file, chunker: :hierarchical, size: 500, overlap: 100
+```
+
+`size` and `overlap` are in characters (defaults: `1000` and `200`, about 250 and 50 tokens). For `:hierarchical`, `size` is the small chunk and sections go up to four times that.
+
+A custom chunker is any object that responds to `call(text, size:, overlap:)` and returns Strings, or Hashes with `content:` and optional `context:` (what the agent reads instead of `content`) and `metadata:`:
+
+```ruby
+has_chunks :body, chunker: ->(text, **) { text.split("\n---\n") }
+```
+
+### Options
+
+* **`as:`**: The [loader](#loaders). Defaults to `:auto`.
+* **`chunker:`**: The [chunker](#chunkers). Defaults to `:recursive`.
+* **`size:`** / **`overlap:`**: Chunk size and overlap, in characters.
+* **`later:`**: Ingests in `OmniAgent::IngestJob` by default, with the [`embedding_job_options`](#background-embedding). A Hash overrides them for this model (`later: { queue: :documents }`), and `false` ingests right after commit, in the request.
+* **`class_name:`**: The chunk model. Defaults to `"#{model}Chunk"`.
+
+### Updating and Searching
+
+* Changing the source replaces the chunks. Chunks whose text didn't change keep their vector, so editing a page of a long document only embeds that page.
+* Deleting the document deletes its chunks.
+* `bin/rails "omni_agent:chunks:ingest[Document]"` ingests documents that have no chunks yet, for example ones created before you added `has_chunks`. Add `,force` to re-ingest every document, for example after changing the chunker. Files no loader can read are listed and skipped.
+* `Document.where(account_id: 1).semantic_search("refunds")` returns the closest `DocumentChunk` records of those documents.
+* `searches Document` searches the chunks of the documents in `scope:`, and lists each match as `[Document#12 › Billing › Refunds] <text>`.
 
 ## Meilisearch
 
