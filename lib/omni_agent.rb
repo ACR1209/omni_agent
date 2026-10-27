@@ -26,5 +26,15 @@ module OmniAgent
     def configure
       yield(configuration)
     end
+
+    # Embeds a String into one vector, or an Array of Strings into one vector
+    # per text. Index and query with the same provider and model, or the
+    # vectors are not comparable.
+    def embed(input, provider: nil, model: nil)
+      provider_name = provider || configuration.embedding_provider || configuration.default_provider
+      vectors = Providers.fetch(provider_name).new.embed(Array(input), model: model || configuration.embedding_model)
+
+      input.is_a?(Array) ? vectors : vectors.first
+    end
   end
 end
