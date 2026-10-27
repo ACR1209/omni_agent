@@ -14,7 +14,7 @@ tool schemas, and generation lifecycle callbacks.
 - Agent callbacks (`before_generation`, `after_generation`)
 - Agent and tool tags to support filtering strategies
 - OpenAI provider integration out of the box, plus an Ollama provider for local models
-- RAG: `has_embedding` models and `searches` tools over pgvector, sqlite-vec, MariaDB or Meilisearch
+- RAG: `has_embedding` models, `has_chunks` documents (PDF, Markdown, HTML) and `searches` tools over pgvector, sqlite-vec, MariaDB or Meilisearch
 - MCP server support: expose tools and whole agents to Claude Code, Claude Desktop, Cursor and other MCP clients
 - Rake tasks and Rails generators for scaffolding
 
@@ -218,7 +218,20 @@ class SupportAgent < OmniAgent::Agent
 end
 ```
 
-Vectors are stored with [neighbor](https://github.com/ankane/neighbor) on Postgres (pgvector), SQLite (sqlite-vec) or MariaDB. Models using meilisearch-rails work with `searches` as they are, and so does any object with a `semantic_search(query, limit:)` method. See [RAG](omniagent-docs/docs/rag.mdx) for the options, Meilisearch setup and embedding configuration.
+Vectors are stored with [neighbor](https://github.com/ankane/neighbor) on Postgres (pgvector), SQLite (sqlite-vec) or MariaDB. Models using meilisearch-rails work with `searches` as they are, and so does any object with a `semantic_search(query, limit:)` method. For files and long text, `has_chunks` splits them into searchable chunks:
+
+```bash
+rails generate omni_agent:chunks Document file   # DocumentChunk model + has_chunks
+```
+
+```ruby
+class Document < ApplicationRecord
+	has_one_attached :file
+	has_chunks :file   # PDF, Markdown, HTML or text, detected per file
+end
+```
+
+See [RAG](omniagent-docs/docs/rag.mdx) for the options, loaders, chunkers, Meilisearch setup and embedding configuration.
 
 ## Evals
 
