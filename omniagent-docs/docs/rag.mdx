@@ -98,7 +98,6 @@ Both take ActiveJob's `set` options: `queue`, `priority`, `wait` and `wait_until
 
 * **Failures**: errors from the embedding API reach your job backend, which retries them (Sidekiq retries by default). Rate limits and timeouts are first retried inside the provider (`max_retries`).
 * **Deleted records**: a job whose record was deleted before it ran is discarded, not retried.
-* **ActiveJob required**: apps generated with `--minimal` don't load it. `has_embedding later:` then raises, asking you to add `require "active_job/railtie"` to `config/application.rb`.
 
 ## The Generator
 

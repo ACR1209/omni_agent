@@ -32,11 +32,6 @@ module OmniAgent
       raise ArgumentError, "has_embedding using: must be :neighbor or :ruby" unless BACKENDS.include?(using)
       raise ArgumentError, "has_embedding later: must be true, false or a Hash of job options" unless [ true, false ].include?(later) || later.is_a?(Hash)
 
-      if later && !defined?(::ActiveJob)
-        raise OmniAgent::MissingDependencyError,
-              "has_embedding later: true needs ActiveJob: add `require \"active_job/railtie\"` to config/application.rb."
-      end
-
       class_attribute :embedding_options, instance_writer: false
       self.embedding_options = {
         sources: sources.map(&:to_sym),

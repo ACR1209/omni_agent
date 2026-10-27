@@ -106,14 +106,6 @@ RSpec.describe OmniAgent::Embeddable do
         .to raise_error(ArgumentError, /Unknown later: option :queue_name.*queue, priority, wait, wait_until/)
     end
 
-    it "explains how to enable ActiveJob when later: true is used without it" do
-      hide_const("ActiveJob")
-
-      expect {
-        Class.new(ActiveRecord::Base) { has_embedding :body, using: :ruby, later: true }
-      }.to raise_error(OmniAgent::MissingDependencyError, %r{active_job/railtie})
-    end
-
     it "requires at least one source attribute" do
       expect {
         Class.new(ActiveRecord::Base) { has_embedding }
