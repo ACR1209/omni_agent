@@ -93,6 +93,9 @@ module OmniAgent
         end
 
         transaction do
+          # Serializes concurrent ingests of this record, and raises
+          # RecordNotFound if it was deleted while embedding.
+          self.class.unscoped.lock.find(id)
           chunks.delete_all
           chunk_class.insert_all!(rows) if rows.any?
         end

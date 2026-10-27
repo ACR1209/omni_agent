@@ -197,6 +197,17 @@ RSpec.describe OmniAgent::Chunkable do
       expect(enqueued_jobs.last).to include("queue_name" => "critical")
     end
 
+    it "discards the job when the document is deleted while it embeds" do
+      document = document_class(later: true).create!(body: "Refunds")
+      allow(OmniAgent).to receive(:embed) do |texts|
+        ChunkedDocument.where(id: document.id).delete_all
+        texts.map { [ 0.1 ] }
+      end
+
+      expect { perform_enqueued_jobs }.not_to raise_error
+      expect(ChunkedDocumentChunk.where(chunked_document_id: document.id)).to be_empty
+    end
+
     it "discards jobs for deleted documents and unreadable files" do
       document_class(:file, later: true).create!(file: { io: StringIO.new("PK\x03\x04\0\0"), filename: "archive.zip" })
       document_class(later: true).create!(body: "Refunds").destroy!
