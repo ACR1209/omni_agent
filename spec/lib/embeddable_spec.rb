@@ -85,6 +85,27 @@ RSpec.describe OmniAgent::Embeddable do
       expect { perform_enqueued_jobs }.not_to raise_error
     end
 
+    it "enqueues with the global embedding_job_options" do
+      OmniAgent.configure { |config| config.embedding_job_options = { queue: :embeddings, priority: 10 } }
+
+      note_class(later: true).create!(title: "Refunds")
+
+      expect(enqueued_jobs.last).to include("queue_name" => "embeddings", "priority" => 10)
+    end
+
+    it "lets each model override the global job options" do
+      OmniAgent.configure { |config| config.embedding_job_options = { queue: :embeddings, priority: 10 } }
+
+      note_class(later: { queue: :critical }).create!(title: "Refunds")
+
+      expect(enqueued_jobs.last).to include("queue_name" => "critical", "priority" => 10)
+    end
+
+    it "rejects unknown job options" do
+      expect { note_class(later: { queue_name: :critical }) }
+        .to raise_error(ArgumentError, /Unknown later: option :queue_name.*queue, priority, wait, wait_until/)
+    end
+
     it "explains how to enable ActiveJob when later: true is used without it" do
       hide_const("ActiveJob")
 
