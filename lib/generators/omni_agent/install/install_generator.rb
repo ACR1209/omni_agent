@@ -24,6 +24,7 @@ module OmniAgent
           # config.embedding_provider = nil            # nil uses default_provider; use :mock in tests
           # config.embedding_model = nil               # nil uses the provider's default embedding model
           # config.embedding_job_options = {}          # for has_embedding later: true, e.g. { queue: :embeddings, priority: 10 }
+          # config.document_loaders = {}               # extra has_chunks loaders, e.g. { docx: DocxLoader }
 
           # Evals
           # config.eval_judge_provider = nil           # nil uses the evaluated agent's provider

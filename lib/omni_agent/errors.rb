@@ -18,6 +18,7 @@ module OmniAgent
       end
     end
     class UnknownStockAgentError < Error; end
+    class UnsupportedDocumentError < Error; end
   end
 
   Error = Errors::Error
@@ -29,4 +30,5 @@ module OmniAgent
   MCPError = Errors::MCPError
   StructuredOutputError = Errors::StructuredOutputError
   UnknownStockAgentError = Errors::UnknownStockAgentError
+  UnsupportedDocumentError = Errors::UnsupportedDocumentError
 end
