@@ -23,6 +23,7 @@ OmniAgent.configure do |config|
   config.embedding_provider = nil
   config.embedding_model = nil
   config.embedding_job_options = {}
+  config.document_loaders = {}
 end
 ```
 
@@ -36,7 +37,8 @@ end
 * **`mcp_max_request_bytes`**: Largest MCP HTTP request body accepted. Larger requests get `413`. Defaults to `1_048_576` (1 MiB).
 * **`embedding_provider`**: The provider [`OmniAgent.embed`](/docs/rag#embeddings) uses. Defaults to `nil`, which falls back to `default_provider`.
 * **`embedding_model`**: The embedding model `OmniAgent.embed` uses. Defaults to `nil`, which uses the provider's default (`text-embedding-3-small` for OpenAI, `nomic-embed-text` for Ollama).
-* **`embedding_job_options`**: ActiveJob `set` options (`queue`, `priority`, `wait`, `wait_until`) for the jobs [`has_embedding later:`](/docs/rag#background-embedding) enqueues. Models can override them with `later: { ... }`. Unknown keys raise an `ArgumentError`. Defaults to `{}`.
+* **`embedding_job_options`**: ActiveJob `set` options (`queue`, `priority`, `wait`, `wait_until`) for the jobs [`has_embedding later:`](/docs/rag#background-embedding) and [`has_chunks`](/docs/rag#documents) enqueue. Models can override them with `later: { ... }`. Unknown keys raise an `ArgumentError`. Defaults to `{}`.
+* **`document_loaders`**: Extra [loaders](/docs/rag#loaders) for `has_chunks`, by name (`{ docx: DocxLoader }`). Loaders with a `handles?` method are tried before the built-in ones when detecting a file's format. Defaults to `{}`.
 
 ## Retry Behavior
 
