@@ -98,7 +98,7 @@ RSpec.describe "OmniAgent::Agent.searches" do
     tool = agent.tool_classes.last
 
     expect(tool.name.split("::").last).to eq("SearchWikis")
-    expect(tool.new.invoke("query" => "refunds")).to eq("refunds page\n\nrefunds page")
+    expect(tool.new.invoke("query" => "refunds")).to eq("refunds page\n\n---\n\nrefunds page")
   end
 
   it "rejects targets it can't search" do

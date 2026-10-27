@@ -135,7 +135,7 @@ module OmniAgent
             results = OmniAgent::SemanticSearch.call(searched, query, limit: limit, embedder: embedder)
             next "No results." if results.empty?
 
-            results.map { |result| OmniAgent::Agent.__send__(:format_search_result, result) }.join("\n\n")
+            results.map { |result| OmniAgent::Agent.__send__(:format_search_result, result) }.join("\n\n---\n\n")
           end
         end
 
