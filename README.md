@@ -14,7 +14,7 @@ tool schemas, and generation lifecycle callbacks.
 - Agent callbacks (`before_generation`, `after_generation`)
 - Agent and tool tags to support filtering strategies
 - OpenAI provider integration out of the box, plus an Ollama provider for local models
-- Embeddings (`OmniAgent.embed`) for RAG with any vector store
+- RAG: `has_embedding` models and `searches` tools over pgvector, sqlite-vec, MariaDB or Meilisearch
 - MCP server support: expose tools and whole agents to Claude Code, Claude Desktop, Cursor and other MCP clients
 - Rake tasks and Rails generators for scaffolding
 
@@ -200,27 +200,25 @@ end
 
 ## RAG
 
-`OmniAgent.embed` turns text into vectors with the configured provider (`text-embedding-3-small` on OpenAI, `nomic-embed-text` on Ollama). Store them in any vector store (pgvector via [neighbor](https://github.com/ankane/neighbor), sqlite-vec, Meilisearch, ...) and retrieve from a tool, so the model searches when it needs to:
+Make a model searchable and give an agent a search tool for it:
+
+```bash
+rails generate omni_agent:embeddings Document title content   # migration + has_embedding
+bin/rails db:migrate
+bin/rails "omni_agent:embeddings:backfill[Document]"
+```
 
 ```ruby
-module SupportAgent::Tools
-	class SearchDocs < OmniAgent::Tool
-		description "Search the knowledge base"
+class Document < ApplicationRecord
+	has_embedding :title, :content   # embedded on save via OmniAgent.embed
+end
 
-		input do
-			string :query
-		end
-
-		def execute(query:)
-			Document.where(account_id: context[:account_id])
-				.nearest_neighbors(:embedding, OmniAgent.embed(query), distance: "cosine")
-				.first(5).map { |doc| "[#{doc.id}] #{doc.content}" }.join("\n\n")
-		end
-	end
+class SupportAgent < OmniAgent::Agent
+	searches Document, scope: ->(context) { where(account_id: context[:account_id]) }
 end
 ```
 
-Index and query with the same embedding model (`config.embedding_provider` / `config.embedding_model`). See [RAG](omniagent-docs/docs/rag.mdx) for the always-retrieve pattern, citations and Meilisearch.
+Vectors are stored with [neighbor](https://github.com/ankane/neighbor) on Postgres (pgvector), SQLite (sqlite-vec) or MariaDB. Models using meilisearch-rails work with `searches` as they are, and so does any object with a `semantic_search(query, limit:)` method. See [RAG](omniagent-docs/docs/rag.mdx) for the options, Meilisearch setup and embedding configuration.
 
 ## Evals
 
