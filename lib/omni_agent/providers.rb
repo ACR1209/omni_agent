@@ -9,5 +9,12 @@ module OmniAgent
         mock_judge: OmniAgent::Providers::MockJudge
       }
     end
+
+    def self.fetch(name)
+      registry.fetch(name.to_sym) do
+        raise OmniAgent::UnknownProviderError,
+              "Unknown provider #{name.inspect}. Known providers: #{registry.keys.join(', ')}"
+      end
+    end
   end
 end
