@@ -31,6 +31,7 @@ module OmniAgent
       raise ArgumentError, "has_embedding requires at least one attribute" if sources.empty?
       raise ArgumentError, "has_embedding using: must be :neighbor or :ruby" unless BACKENDS.include?(using)
       raise ArgumentError, "has_embedding later: must be true, false or a Hash of job options" unless [ true, false ].include?(later) || later.is_a?(Hash)
+      raise ArgumentError, "#{name} already uses has_chunks. A model uses has_embedding or has_chunks, not both." if respond_to?(:chunk_options)
 
       class_attribute :embedding_options, instance_writer: false
       self.embedding_options = {

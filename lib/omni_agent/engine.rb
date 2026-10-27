@@ -10,8 +10,11 @@ module OmniAgent
       ActionDispatch::Routing::Mapper.include(OmniAgent::MCP::Routing)
     end
 
-    initializer "omni_agent.embeddable" do
-      ActiveSupport.on_load(:active_record) { extend OmniAgent::Embeddable }
+    initializer "omni_agent.active_record" do
+      ActiveSupport.on_load(:active_record) do
+        extend OmniAgent::Embeddable
+        extend OmniAgent::Chunkable
+      end
     end
   end
 end
