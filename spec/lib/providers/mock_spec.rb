@@ -119,6 +119,23 @@ RSpec.describe OmniAgent::Providers::Mock do
     end
   end
 
+  describe "#embed" do
+    it "returns one fixed-size vector per text" do
+      vectors = described_class.new.embed([ "first", "second" ])
+
+      expect(vectors.length).to eq(2)
+      expect(vectors).to all(have_attributes(length: 8))
+      expect(vectors.flatten).to all(be_a(Float).and(be_between(0.0, 1.0)))
+    end
+
+    it "is deterministic: the same text always gets the same vector" do
+      provider = described_class.new
+
+      expect(provider.embed([ "same" ])).to eq(provider.embed([ "same" ]))
+      expect(provider.embed([ "same" ])).not_to eq(provider.embed([ "other" ]))
+    end
+  end
+
   describe "configuration" do
     it "uses mock as the default model" do
       provider = described_class.new

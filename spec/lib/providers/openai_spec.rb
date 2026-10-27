@@ -34,6 +34,47 @@ RSpec.describe OmniAgent::Providers::OpenAI do
     expect(result.raw_request).to eq(model: "gpt-test", messages: messages)
   end
 
+  describe "#embed" do
+    def stub_embeddings(api_key: "token")
+      embeddings = double("embeddings")
+      client_instance = instance_double(OpenAI::Client, embeddings: embeddings)
+      allow(OpenAI::Client).to receive(:new).with(api_key: api_key).and_return(client_instance)
+      embeddings
+    end
+
+    def embedding_response(*vectors)
+      double("response", data: vectors.map { |vector| double("embedding", embedding: vector) })
+    end
+
+    it "returns one vector per input text, in order" do
+      embeddings = stub_embeddings
+      expect(embeddings).to receive(:create)
+        .with(input: [ "first", "second" ], model: "text-embedding-3-small")
+        .and_return(embedding_response([ 0.1, 0.2 ], [ 0.3, 0.4 ]))
+
+      vectors = described_class.new(api_key: "token").embed([ "first", "second" ])
+
+      expect(vectors).to eq([ [ 0.1, 0.2 ], [ 0.3, 0.4 ] ])
+    end
+
+    it "uses the given embedding model instead of the chat model" do
+      embeddings = stub_embeddings
+      expect(embeddings).to receive(:create)
+        .with(input: [ "text" ], model: "text-embedding-3-large")
+        .and_return(embedding_response([ 0.5 ]))
+
+      described_class.new(api_key: "token", model: "gpt-test").embed([ "text" ], model: "text-embedding-3-large")
+    end
+
+    it "wraps client errors in OmniAgent::Error" do
+      allow(stub_embeddings).to receive(:create).and_raise(StandardError.new("boom"))
+
+      expect {
+        described_class.new(api_key: "token").embed([ "text" ])
+      }.to raise_error(OmniAgent::Error, /Error during OpenAI embed: boom/)
+    end
+  end
+
   it "supports structured output" do
     expect(described_class.new(api_key: "token").supports_structured_output?).to be(true)
   end

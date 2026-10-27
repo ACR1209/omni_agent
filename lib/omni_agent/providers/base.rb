@@ -13,6 +13,13 @@ module OmniAgent
         raise NotImplementedError, "Providers must implement #chat"
       end
 
+      # Returns one embedding vector (Array of Floats) per text in `texts`.
+      # `model` is the embedding model; it defaults per provider, never to the
+      # chat model.
+      def embed(texts, model: nil)
+        raise NotImplementedError, "#{self.class.name.split('::').last} does not support embeddings"
+      end
+
       # Providers that return true receive an agent's output schema as the
       # `output_schema:` keyword of #chat. Otherwise the schema is only
       # described in the system prompt.
