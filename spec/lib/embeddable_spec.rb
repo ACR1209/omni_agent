@@ -78,6 +78,14 @@ RSpec.describe OmniAgent::Embeddable do
       expect(note.reload.embedding).to eq(mock_vector("Refunds\n\nWithin 30 days"))
     end
 
+    it "explains how to enable ActiveJob when later: true is used without it" do
+      hide_const("ActiveJob")
+
+      expect {
+        Class.new(ActiveRecord::Base) { has_embedding :body, using: :ruby, later: true }
+      }.to raise_error(OmniAgent::MissingDependencyError, %r{active_job/railtie})
+    end
+
     it "requires at least one source attribute" do
       expect {
         Class.new(ActiveRecord::Base) { has_embedding }
