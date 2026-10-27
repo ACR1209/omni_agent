@@ -8,7 +8,7 @@ Omni Agent ships with sensible defaults but lets you configure global behavior t
 
 ## Global Defaults
 
-Create `config/initializers/omni_agent.rb` in your Rails app:
+`rails generate omni_agent:install` writes `config/initializers/omni_agent.rb` with every setting commented out at its default, so you only uncomment what you change. You can also create the file yourself:
 
 ```ruby
 OmniAgent.configure do |config|
@@ -22,6 +22,7 @@ OmniAgent.configure do |config|
   config.mcp_max_request_bytes = 1_048_576
   config.embedding_provider = nil
   config.embedding_model = nil
+  config.embedding_job_options = {}
 end
 ```
 
@@ -35,6 +36,7 @@ end
 * **`mcp_max_request_bytes`**: Largest MCP HTTP request body accepted. Larger requests get `413`. Defaults to `1_048_576` (1 MiB).
 * **`embedding_provider`**: The provider [`OmniAgent.embed`](/docs/rag#embeddings) uses. Defaults to `nil`, which falls back to `default_provider`.
 * **`embedding_model`**: The embedding model `OmniAgent.embed` uses. Defaults to `nil`, which uses the provider's default (`text-embedding-3-small` for OpenAI, `nomic-embed-text` for Ollama).
+* **`embedding_job_options`**: ActiveJob `set` options (`queue`, `priority`, `wait`, `wait_until`) for the jobs [`has_embedding later:`](/docs/rag#background-embedding) enqueues. Models can override them with `later: { ... }`. Unknown keys raise an `ArgumentError`. Defaults to `{}`.
 
 ## Retry Behavior
 

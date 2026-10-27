@@ -53,12 +53,52 @@ Options:
 
 * **`column:`**: The vector column. Defaults to `:embedding`.
 * **`dimensions:`**: Vector size. Required on SQLite, where the column is `binary`. Postgres and MariaDB read it from the column.
-* **`later: true`**: Embed in `OmniAgent::EmbedJob` after commit, instead of during `save`. Use it when saves must not wait for (or fail on) the embedding API.
+* **`later:`**: `true` embeds in a [background job](#background-embedding) after commit, instead of during `save`. A Hash also sets that model's job options (`later: { queue: :critical }`).
 * **`using: :ruby`**: See [Ruby fallback](#ruby-fallback-small-tables-only).
 
 :::tip
 In tests, set `config.embedding_provider = :mock` so saving a record never calls a real API. The mock returns deterministic 8-dimension vectors.
 :::
+
+## Background Embedding
+
+With `later:`, saving a record enqueues `OmniAgent::EmbedJob` after the transaction commits, so a worker never picks up a record that isn't in the database yet. The vector is `nil` until the job runs.
+
+The job is a regular ActiveJob job, so it runs on your app's queue adapter (Sidekiq, Solid Queue, GoodJob, ...). Set the adapter app-wide:
+
+```ruby
+# config/application.rb
+config.active_job.queue_adapter = :sidekiq
+```
+
+:::warning
+If you use Sidekiq only through `Sidekiq::Job` and never set `queue_adapter`, ActiveJob falls back to `:async`: jobs run in threads inside your web process and are lost on restart.
+:::
+
+Set the queue and other options for every embed job in the initializer, then override them per model:
+
+```ruby
+# config/initializers/omni_agent.rb
+OmniAgent.configure do |config|
+  config.embedding_job_options = { queue: :embeddings, priority: 10 }
+end
+```
+
+```ruby
+class Document < ApplicationRecord
+  has_embedding :title, :content, later: true                      # queue: :embeddings, priority: 10
+end
+
+class Ticket < ApplicationRecord
+  has_embedding :subject, :body, later: { queue: :critical }        # queue: :critical, priority: 10
+end
+```
+
+Both take ActiveJob's `set` options: `queue`, `priority`, `wait` and `wait_until`. Unknown keys raise an `ArgumentError`. Make sure your workers process the queue you pick (for Sidekiq, `sidekiq -q embeddings -q default`).
+
+* **Failures**: errors from the embedding API reach your job backend, which retries them (Sidekiq retries by default). Rate limits and timeouts are first retried inside the provider (`max_retries`).
+* **Deleted records**: a job whose record was deleted before it ran is discarded, not retried.
+* **ActiveJob required**: apps generated with `--minimal` don't load it. `has_embedding later:` then raises, asking you to add `require "active_job/railtie"` to `config/application.rb`.
 
 ## The Generator
 

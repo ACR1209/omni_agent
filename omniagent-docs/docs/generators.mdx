@@ -12,7 +12,7 @@ Omni Agent ships six Rails generators to scaffold your project.
 rails generate omni_agent:install
 ```
 
-Creates the `app/agents` root directory. Run this once per application, right after installing the gem.
+Creates the `app/agents` root directory and `config/initializers/omni_agent.rb`, which lists every [configuration](./configuration.mdx) setting commented out at its default. An existing initializer is left untouched. Run this once per application, right after installing the gem.
 
 ## Agent Generator
 
@@ -113,4 +113,4 @@ It then prints the commands to install the gems, migrate and backfill existing r
 * **`--backend`**: `pgvector`, `sqlite`, `mariadb` or `ruby`. Defaults to the one matching your database adapter. Plain MySQL is refused unless you pass `--backend=ruby`, which is [for small tables only](./rag.mdx#ruby-fallback-small-tables-only).
 * **`--dimensions`**: Vector size. Pass it when the embedding model can't be reached (offline, no API key).
 * **`--column`**: Vector column name. Defaults to `embedding`.
-* **`--later`**: Embed in a background job after commit instead of during `save`.
+* **`--later`**: Embed in a [background job](./rag.mdx#background-embedding) after commit instead of during `save`.
