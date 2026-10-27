@@ -105,9 +105,7 @@ module OmniAgent
         end
 
         tool_class = build_delegated_tool_class(agent_class, description: description, run_alias: run_alias, forward: forward)
-        delegated_tools_module.const_set(delegated_tool_const_name(as), tool_class)
-
-        @delegated_tool_classes = configured_delegated_tool_classes + [ tool_class ]
+        add_built_tool(as, tool_class)
       end
 
       def configured_delegated_tool_classes
@@ -195,6 +193,11 @@ module OmniAgent
 
       def tool_call_name(tool)
         tool.name ? tool.name.split("::").last : tool
+      end
+
+      def add_built_tool(as, tool_class)
+        delegated_tools_module.const_set(delegated_tool_const_name(as), tool_class)
+        @delegated_tool_classes = configured_delegated_tool_classes + [ tool_class ]
       end
 
       def delegated_tools_module
