@@ -14,6 +14,7 @@ tool schemas, and generation lifecycle callbacks.
 - Agent callbacks (`before_generation`, `after_generation`)
 - Agent and tool tags to support filtering strategies
 - OpenAI provider integration out of the box, plus an Ollama provider for local models
+- Embeddings (`OmniAgent.embed`) for RAG with any vector store
 - MCP server support: expose tools and whole agents to Claude Code, Claude Desktop, Cursor and other MCP clients
 - Rake tasks and Rails generators for scaffolding
 
@@ -196,6 +197,30 @@ end
 ```
 
 `.stream` must come before the call (`.stream.run(...)`, not `.run(...).stream`) — without it, or without a block, behavior is unchanged and the same `Response` is returned either way. Only the `openai`, `ollama`, and `mock` providers stream today. See [Streaming Responses](omniagent-docs/docs/agent/streaming.mdx) for the full event reference.
+
+## RAG
+
+`OmniAgent.embed` turns text into vectors with the configured provider (`text-embedding-3-small` on OpenAI, `nomic-embed-text` on Ollama). Store them in any vector store (pgvector via [neighbor](https://github.com/ankane/neighbor), sqlite-vec, Meilisearch, ...) and retrieve from a tool, so the model searches when it needs to:
+
+```ruby
+module SupportAgent::Tools
+	class SearchDocs < OmniAgent::Tool
+		description "Search the knowledge base"
+
+		input do
+			string :query
+		end
+
+		def execute(query:)
+			Document.where(account_id: context[:account_id])
+				.nearest_neighbors(:embedding, OmniAgent.embed(query), distance: "cosine")
+				.first(5).map { |doc| "[#{doc.id}] #{doc.content}" }.join("\n\n")
+		end
+	end
+end
+```
+
+Index and query with the same embedding model (`config.embedding_provider` / `config.embedding_model`). See [RAG](omniagent-docs/docs/rag.mdx) for the always-retrieve pattern, citations and Meilisearch.
 
 ## Evals
 
