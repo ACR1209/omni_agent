@@ -29,6 +29,10 @@ RSpec.describe OmniAgent::Configuration do
     it "has no embedding job options" do
       expect(OmniAgent.configuration.embedding_job_options).to eq({})
     end
+
+    it "has no extra document loaders" do
+      expect(OmniAgent.configuration.document_loaders).to eq({})
+    end
   end
 
   describe "#embedding_job_options=" do

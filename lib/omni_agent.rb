@@ -5,7 +5,8 @@ require "zeitwerk"
 loader = Zeitwerk::Loader.for_gem
 loader.inflector.inflect(
   "openai" => "OpenAI", "cli" => "CLI", "mcp" => "MCP",
-  "oauth" => "OAuth", "jwt_verifier" => "JWTVerifier", "http_client" => "HTTPClient"
+  "oauth" => "OAuth", "jwt_verifier" => "JWTVerifier", "http_client" => "HTTPClient",
+  "pdf" => "PDF", "html" => "HTML"
 )
 loader.ignore(File.expand_path("generators", __dir__))
 loader.setup

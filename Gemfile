@@ -30,4 +30,5 @@ group :development, :test do
   gem "jwt"
   gem "neighbor"
   gem "meilisearch-rails"
+  gem "pdf-reader"
 end
