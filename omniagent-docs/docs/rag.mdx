@@ -1,0 +1,132 @@
+---
+sidebar_position: 7.5
+---
+
+# Retrieval-Augmented Generation (RAG)
+
+RAG lets an agent answer from your own data: you fetch the passages relevant to the question and give them to the model. Omni Agent doesn't ship a vector store. Retrieval runs in your code, against whatever store you already use (pgvector, sqlite-vec, Meilisearch, ...). Omni Agent provides the embeddings and two places to plug retrieval in.
+
+## Embeddings
+
+`OmniAgent.embed` turns text into vectors with the configured provider:
+
+```ruby
+OmniAgent.embed("How do refunds work?")
+# => [0.0123, -0.0456, ...]
+
+OmniAgent.embed([ "first chunk", "second chunk" ])
+# => [[...], [...]]
+```
+
+| Provider | Default embedding model |
+| --- | --- |
+| `:openai` | `text-embedding-3-small` |
+| `:ollama` | `nomic-embed-text` (or `OLLAMA_EMBEDDING_MODEL`) |
+| `:mock` | Deterministic 8-dimension vectors, no network calls |
+
+Embedding settings are separate from the chat model. Set them once so indexing and searching always match:
+
+```ruby
+OmniAgent.configure do |config|
+  config.embedding_provider = :openai          # defaults to default_provider
+  config.embedding_model = "text-embedding-3-large" # defaults to the provider's model
+end
+```
+
+Override per call with `OmniAgent.embed(text, provider: :ollama, model: "mxbai-embed-large")`.
+
+:::warning
+Index and query with the same provider and model. Vectors from different models (or dimensions) are not comparable, and search returns garbage without raising.
+:::
+
+## Indexing
+
+Split your documents into chunks, embed them and store the vectors. With [neighbor](https://github.com/ankane/neighbor) and pgvector:
+
+```ruby
+class Document < ApplicationRecord
+  has_neighbors :embedding
+  before_save { self.embedding = OmniAgent.embed(content) if content_changed? }
+end
+```
+
+For large imports, embed in batches (`OmniAgent.embed(chunks)`) from a background job.
+
+## Pattern 1: Retrieval as a Tool
+
+The model decides when to search, and can search more than once. Write a regular [tool](/docs/tools):
+
+```ruby
+module SupportAgent::Tools
+  class SearchDocs < OmniAgent::Tool
+    description "Search the knowledge base. Returns passages with their ids."
+    annotations read_only: true
+
+    input do
+      string :query, description: "What to look for"
+    end
+
+    def execute(query:)
+      Document.where(account_id: context[:account_id])
+              .nearest_neighbors(:embedding, OmniAgent.embed(query), distance: "cosine")
+              .first(5)
+              .map { |doc| "[#{doc.id}] #{doc.content}" }
+              .join("\n\n")
+    end
+  end
+end
+```
+
+Scope the search with `context` so one tenant never retrieves another tenant's documents. Because it's a normal tool, it also works over [MCP](/docs/category/mcp-servers) and with [delegation](/docs/agent/delegation), and evals can assert that it was called.
+
+## Pattern 2: Always Retrieve First
+
+Retrieve before every generation with a [`before_generation` callback](/docs/agent/callbacks). Instance variables it sets are available in the prompt:
+
+```ruby
+class SupportAgent < OmniAgent::Agent
+  before_generation :retrieve
+
+  def retrieve(payload)
+    @passages = Document.nearest_neighbors(:embedding, OmniAgent.embed(payload[:input]), distance: "cosine").first(5)
+  end
+end
+```
+
+```erb
+<%# app/agents/support_agent/prompt.md.erb %>
+Answer using only the sources below and cite their ids.
+
+<% @passages.each do |passage| %>
+[<%= passage.id %>] <%= passage.content %>
+<% end %>
+```
+
+This saves a round trip but always pays for retrieval, even for questions that don't need it. Pattern 1 is usually the better default.
+
+## Citations
+
+Combine either pattern with [structured output](/docs/agent/structured-output) to get the sources back as data:
+
+```ruby
+output do
+  string :answer
+  array :source_ids, items_type: "integer"
+end
+```
+
+## Meilisearch
+
+[Meilisearch](https://www.meilisearch.com/) does hybrid (keyword + semantic) search. If you configure an embedder in Meilisearch itself, it embeds documents and queries for you and you don't need `OmniAgent.embed`:
+
+```ruby
+def execute(query:)
+  MEILI.index("docs").search(query,
+    hybrid: { embedder: "default", semanticRatio: 0.7 },
+    filter: "account_id = #{Integer(context[:account_id])}",
+    limit: 5
+  )["hits"].map { |hit| "[#{hit['id']}] #{hit['content']}" }.join("\n\n")
+end
+```
+
+With a `userProvided` embedder, embed with Omni Agent instead: store `_vectors: { default: OmniAgent.embed(content) }` on each document and pass `vector: OmniAgent.embed(query)` along with `hybrid:` when searching.

@@ -38,10 +38,11 @@ Configuration is via environment variables, all optional:
 | --- | --- | --- |
 | `OLLAMA_HOST` | `http://localhost:11434` | Base URL of the Ollama server (the provider appends `/v1`) |
 | `OLLAMA_MODEL` | `llama3.1` | Default model when none is passed to `provider`/`use_model` |
+| `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Default model for [`OmniAgent.embed`](/docs/rag#embeddings) |
 | `OLLAMA_API_KEY` | `ollama` | Sent as the bearer token; Ollama ignores it, but the `openai` client requires a non-nil value |
 
-Streaming and tool-calling both work the same as the OpenAI provider (Ollama subclasses it and only overrides client construction and defaults).
+Streaming, tool-calling and embeddings all work the same as the OpenAI provider (Ollama subclasses it and only overrides client construction and defaults).
 
 ## Mock
 
-Returns a canned response without making network calls. Useful for tests.
+Returns a canned response without making network calls. Useful for tests. `embed` returns deterministic vectors derived from the text, so the same text always gets the same vector.

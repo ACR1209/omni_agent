@@ -20,6 +20,8 @@ OmniAgent.configure do |config|
   config.max_delegation_depth = 5
   config.mcp_allowed_origins = []
   config.mcp_max_request_bytes = 1_048_576
+  config.embedding_provider = nil
+  config.embedding_model = nil
 end
 ```
 
@@ -31,6 +33,8 @@ end
 * **`max_delegation_depth`**: Max nesting depth for [agent delegation](/docs/agent/delegation) chains before raising `OmniAgent::MaxDelegationDepthError`. Defaults to `5`.
 * **`mcp_allowed_origins`**: Browser origins (Strings or Regexps) allowed to call any [MCP server](/docs/mcp/authentication#origin-checks) over HTTP. Requests that send any other `Origin` get `403`. Defaults to `[]`.
 * **`mcp_max_request_bytes`**: Largest MCP HTTP request body accepted. Larger requests get `413`. Defaults to `1_048_576` (1 MiB).
+* **`embedding_provider`**: The provider [`OmniAgent.embed`](/docs/rag#embeddings) uses. Defaults to `nil`, which falls back to `default_provider`.
+* **`embedding_model`**: The embedding model `OmniAgent.embed` uses. Defaults to `nil`, which uses the provider's default (`text-embedding-3-small` for OpenAI, `nomic-embed-text` for Ollama).
 
 ## Retry Behavior
 
