@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # Generators
 
-Omni Agent ships five Rails generators to scaffold your project.
+Omni Agent ships six Rails generators to scaffold your project.
 
 ## Install Generator
 
@@ -97,3 +97,20 @@ It then prints the commands to connect Claude Code over HTTP and stdio.
 * **`--path`**: Mount path, written as `mcp_server :support, path: "..."`. Defaults to `/mcp/<name>`.
 
 The `Server` suffix is added if you leave it out (`Support` → `SupportServer`). See [Defining MCP Servers](./mcp/defining-servers.mdx).
+
+## Embeddings Generator
+
+```bash
+rails generate omni_agent:embeddings Document title content
+```
+
+Adds an embedding column to the `Document` model and declares `has_embedding :title, :content` on it, so the model can be searched by agents with [`searches`](./rag.mdx#searches). The migration matches your database: a pgvector `vector` column with a cosine index on Postgres, a `binary` column plus the sqlite-vec initializer on SQLite, a `vector` column on MariaDB. The vector size is detected by embedding one string with your configured model.
+
+It then prints the commands to install the gems, migrate and backfill existing records.
+
+### Options
+
+* **`--backend`**: `pgvector`, `sqlite`, `mariadb` or `ruby`. Defaults to the one matching your database adapter. Plain MySQL is refused unless you pass `--backend=ruby`, which is [for small tables only](./rag.mdx#ruby-fallback-small-tables-only).
+* **`--dimensions`**: Vector size. Pass it when the embedding model can't be reached (offline, no API key).
+* **`--column`**: Vector column name. Defaults to `embedding`.
+* **`--later`**: Embed in a background job after commit instead of during `save`.
