@@ -58,6 +58,11 @@ RSpec.describe OmniAgent::Chunkers do
       MD
     end
 
+    it "skips headings with nothing under them" do
+      expect(described_class.call("# Billing\n\n## Refunds\n\n30 days.", size: 1000, overlap: 0))
+        .to eq([ { content: "## Refunds\n\n30 days.", metadata: { "headings" => [ "Billing", "Refunds" ] } } ])
+    end
+
     it "makes one chunk per section, tagged with its heading path" do
       chunks = described_class.call(text, size: 1000, overlap: 0)
 
