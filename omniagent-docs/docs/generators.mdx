@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # Generators
 
-Omni Agent ships six Rails generators to scaffold your project.
+Omni Agent ships seven Rails generators to scaffold your project.
 
 ## Install Generator
 
@@ -114,3 +114,21 @@ It then prints the commands to install the gems, migrate and backfill existing r
 * **`--dimensions`**: Vector size. Pass it when the embedding model can't be reached (offline, no API key).
 * **`--column`**: Vector column name. Defaults to `embedding`.
 * **`--later`**: Embed in a [background job](./rag.mdx#background-embedding) after commit instead of during `save`.
+
+## Chunks Generator
+
+```bash
+rails generate omni_agent:chunks Document file
+```
+
+Creates a `DocumentChunk` model and its table (with a vector column that matches your database, like the [embeddings generator](#embeddings-generator)) and declares `has_chunks :file` on `Document`, so its [documents are split and searched in chunks](./rag.mdx#documents). If `file` is neither declared on the model nor a column, it's taken as an upload and `has_one_attached :file` is added too.
+
+It then prints the commands to install the gems, migrate and ingest existing records.
+
+### Options
+
+* **`--as`**: A [loader](./rag.mdx#loaders) to enforce (`pdf`, `html`, `markdown`, `text`). Defaults to detecting each file's format.
+* **`--chunker`**: `recursive`, `markdown` or `hierarchical`. Defaults to `recursive`.
+* **`--size`** / **`--overlap`**: Chunk size and overlap, in characters.
+* **`--inline`**: Ingest right after commit instead of in a background job.
+* **`--backend`** / **`--dimensions`**: Same as the [embeddings generator](#options-3).
