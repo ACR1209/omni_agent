@@ -29,4 +29,5 @@ group :development, :test do
   gem "openai", "~> 0.99.0"
   gem "jwt"
   gem "neighbor"
+  gem "meilisearch-rails"
 end

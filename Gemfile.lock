@@ -94,6 +94,7 @@ GEM
       bigdecimal
       rexml
     crass (1.0.7)
+    csv (3.3.6)
     date (3.5.1)
     diff-lcs (1.6.2)
     dotenv (3.2.0)
@@ -106,6 +107,10 @@ GEM
     globalid (1.4.0)
       activesupport (>= 6.1)
     hashdiff (1.2.1)
+    httparty (0.24.3)
+      csv
+      mini_mime (>= 1.0.0)
+      multi_xml (>= 0.5.2)
     i18n (1.15.2)
       concurrent-ruby (~> 1.0)
     io-console (0.9.4)
@@ -130,10 +135,18 @@ GEM
       net-pop
       net-smtp
     marcel (1.2.1)
+    meilisearch (0.32.0)
+      httparty (~> 0.22)
+    meilisearch-rails (0.17.0)
+      meilisearch (~> 0.32.0)
+      mutex_m (~> 0.2)
     mini_mime (1.1.5)
     minitest (6.0.6)
       drb (~> 2.0)
       prism (~> 1.5)
+    multi_xml (0.9.1)
+      bigdecimal (>= 3.1, < 5)
+    mutex_m (0.3.0)
     neighbor (1.2.0)
       activerecord (>= 7.2)
     net-imap (0.6.7)
@@ -331,6 +344,7 @@ PLATFORMS
 DEPENDENCIES
   dotenv-rails
   jwt
+  meilisearch-rails
   neighbor
   omni_agent!
   openai (~> 0.99.0)
