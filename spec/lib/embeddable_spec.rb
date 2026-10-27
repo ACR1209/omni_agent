@@ -78,6 +78,13 @@ RSpec.describe OmniAgent::Embeddable do
       expect(note.reload.embedding).to eq(mock_vector("Refunds\n\nWithin 30 days"))
     end
 
+    it "discards the job when the record is deleted before it runs" do
+      note = note_class(later: true).create!(title: "Refunds")
+      note.destroy!
+
+      expect { perform_enqueued_jobs }.not_to raise_error
+    end
+
     it "explains how to enable ActiveJob when later: true is used without it" do
       hide_const("ActiveJob")
 
