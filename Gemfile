@@ -28,4 +28,5 @@ group :development, :test do
   gem "dotenv-rails"
   gem "openai", "~> 0.99.0"
   gem "jwt"
+  gem "neighbor"
 end
