@@ -100,6 +100,16 @@ RSpec.describe OmniAgent::Generators::EmbeddingsGenerator do
     expect(migration).to be_nil
   end
 
+  it "asks for --backend when it can't connect to tell MySQL from MariaDB" do
+    allow(ActiveRecord::Base).to receive(:connection_db_config).and_return(double(adapter: "trilogy"))
+    allow(ActiveRecord::Base).to receive(:with_connection).and_raise(ActiveRecord::NoDatabaseError, "Database not found")
+
+    output = generate
+
+    expect(output).to match(/Couldn't connect.*Database not found.*--backend=mariadb\|ruby/m)
+    expect(migration).to be_nil
+  end
+
   it "asks for --dimensions when the embedding model can't be reached" do
     allow(OmniAgent).to receive(:embed).and_raise(OmniAgent::Error, "no API key")
 

@@ -68,13 +68,20 @@ module OmniAgent
         when /postg/ then "pgvector"
         when /sqlite/ then "sqlite"
         when /mysql|trilogy/
-          return "mariadb" if ActiveRecord::Base.with_connection(&:mariadb?)
+          return "mariadb" if mariadb?
 
           raise Thor::Error, "MySQL can't search vectors without HeatWave. Use Postgres, SQLite or MariaDB 11.8+, " \
                              "or pass --backend=ruby, which loads every row on each search and only suits small tables."
         else
           raise Thor::Error, "Couldn't detect a vector backend for this database. Pass --backend=#{BACKENDS.join('|')}."
         end
+      end
+
+      def mariadb?
+        ActiveRecord::Base.with_connection(&:mariadb?)
+      rescue ActiveRecord::ActiveRecordError => e
+        raise Thor::Error, "Couldn't connect to the database to tell MySQL from MariaDB (#{e.message}). " \
+                           "Create it first, or pass --backend=mariadb|ruby."
       end
 
       def dimensions
