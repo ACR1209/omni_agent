@@ -113,7 +113,7 @@ class Article < ApplicationRecord
   include Meilisearch::Rails
 
   meilisearch do
-    attribute :title, :body
+    attribute :title, :body, :account_id
     filterable_attributes [ :account_id ]
   end
 end
@@ -131,7 +131,7 @@ Article.index.update_embedders(
 )
 ```
 
-Equality conditions in `scope:` (`where(account_id: 1)`) are sent to Meilisearch as filters, so those attributes must be `filterable_attributes`. Every hit is then checked against the full scope in your database, so a condition Meilisearch can't express is still enforced.
+Equality conditions in `scope:` (`where(account_id: 1)`) are sent to Meilisearch as filters, so those attributes must be both indexed (listed in `attribute`) and `filterable_attributes`. If they're missing, the search matches nothing and the tool returns "No results.". Every hit is then checked against the full scope in your database, so a condition Meilisearch can't express is still enforced.
 
 ## Any Other Store
 
