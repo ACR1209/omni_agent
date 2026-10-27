@@ -20,6 +20,11 @@ RSpec.describe OmniAgent::Configuration do
     it "uses gpt-4o-mini as the default model" do
       expect(OmniAgent.configuration.default_model).to eq("gpt-4o-mini")
     end
+
+    it "leaves the embedding provider and model unset so they fall back to the provider defaults" do
+      expect(OmniAgent.configuration.embedding_provider).to be_nil
+      expect(OmniAgent.configuration.embedding_model).to be_nil
+    end
   end
 
   describe ".configure" do
