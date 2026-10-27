@@ -1,5 +1,5 @@
 module OmniAgent
-  class EmbedJob < ApplicationJob
+  class EmbedJob < ActiveJob::Base
     # The record was deleted before the job ran; there's nothing to embed.
     discard_on ActiveJob::DeserializationError
 

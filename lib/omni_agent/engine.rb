@@ -1,3 +1,7 @@
+# EmbedJob (has_embedding later:) needs ActiveJob. Loading its railtie here,
+# during Bundler.require, also works in apps that don't require it themselves.
+require "active_job/railtie"
+
 module OmniAgent
   class Engine < ::Rails::Engine
     isolate_namespace OmniAgent
