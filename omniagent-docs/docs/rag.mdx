@@ -94,7 +94,7 @@ class Ticket < ApplicationRecord
 end
 ```
 
-Both take ActiveJob's `set` options: `queue`, `priority`, `wait` and `wait_until`. Unknown keys raise an `ArgumentError`. Make sure your workers process the queue you pick (for Sidekiq, `sidekiq -q embeddings -q default`).
+Both take ActiveJob's `set` options: `queue`, `priority`, `wait` and `wait_until`. Unknown keys raise an `ArgumentError`. `priority` only matters on backends that support it (Solid Queue, GoodJob, Delayed Job). Sidekiq ignores it and orders work by queue, so use a separate queue there instead. Make sure your workers process the queue you pick (for Sidekiq, `sidekiq -q embeddings -q default`).
 
 * **Failures**: errors from the embedding API reach your job backend, which retries them (Sidekiq retries by default). Rate limits and timeouts are first retried inside the provider (`max_retries`).
 * **Deleted records**: a job whose record was deleted before it ran is discarded, not retried.
