@@ -123,6 +123,15 @@ RSpec.describe OmniAgent::Generators::ChunksGenerator do
     expect(output).to match(/every row/i)
   end
 
+  it "numbers the migration after one created in the same second" do
+    FileUtils.mkdir_p(File.join(@destination, "db", "migrate"))
+    File.write(File.join(@destination, "db", "migrate", "29990101000000_create_action_text_tables.rb"), "")
+
+    generate("file", "--backend=ruby")
+
+    expect(Dir[File.join(@destination, "db", "migrate", "29990101000001_create_document_chunks.rb")]).not_to be_empty
+  end
+
   it "asks for the document model first" do
     File.delete(File.join(@destination, "app", "models", "document.rb"))
 

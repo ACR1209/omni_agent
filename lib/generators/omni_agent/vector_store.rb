@@ -71,8 +71,10 @@ module OmniAgent
       end
 
       def migration_file(name, body_lines)
-        timestamp = Time.now.utc.strftime("%Y%m%d%H%M%S")
-        create_file File.join("db", "migrate", "#{timestamp}_#{name.underscore}.rb"), <<~RUBY
+        # Like Rails' generators: after the newest migration, even one created this same second.
+        newest = Dir[File.join(destination_root, "db", "migrate", "*.rb")].map { |path| File.basename(path).to_i }.max.to_i
+        number = [ Time.now.utc.strftime("%Y%m%d%H%M%S").to_i, newest + 1 ].max
+        create_file File.join("db", "migrate", "#{number}_#{name.underscore}.rb"), <<~RUBY
           class #{name} < ActiveRecord::Migration[#{ActiveRecord::Migration.current_version}]
             def change
           #{body_lines.map { |line| line.empty? ? "" : "    #{line}" }.join("\n")}
