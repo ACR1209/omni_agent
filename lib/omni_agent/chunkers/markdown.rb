@@ -33,7 +33,8 @@ module OmniAgent
           sections.last[1] << line
         end
 
-        sections.reject { |_, body| body.strip.empty? }
+        # A heading with nothing under it lives on in its subsections' paths.
+        sections.reject { |headings, body| body.lines.drop(headings.any? ? 1 : 0).join.strip.empty? }
       end
     end
   end
