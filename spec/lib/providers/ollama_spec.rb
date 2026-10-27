@@ -99,6 +99,41 @@ RSpec.describe OmniAgent::Providers::Ollama do
     expect(result.content).to eq("Hi there")
   end
 
+  describe "#embed" do
+    around do |example|
+      original = ENV["OLLAMA_EMBEDDING_MODEL"]
+      ENV.delete("OLLAMA_EMBEDDING_MODEL")
+      example.run
+      ENV["OLLAMA_EMBEDDING_MODEL"] = original
+    end
+
+    def stub_embeddings
+      embeddings = double("embeddings")
+      client_instance = instance_double(OpenAI::Client, embeddings: embeddings)
+      expect(OpenAI::Client).to receive(:new)
+        .with(api_key: "ollama", base_url: "http://localhost:11434/v1")
+        .and_return(client_instance)
+      embeddings
+    end
+
+    it "embeds with nomic-embed-text through the OpenAI-compat endpoint by default" do
+      expect(stub_embeddings).to receive(:create)
+        .with(input: [ "text" ], model: "nomic-embed-text")
+        .and_return(double("response", data: [ double("embedding", embedding: [ 0.1 ]) ]))
+
+      expect(described_class.new.embed([ "text" ])).to eq([ [ 0.1 ] ])
+    end
+
+    it "honors OLLAMA_EMBEDDING_MODEL" do
+      ENV["OLLAMA_EMBEDDING_MODEL"] = "mxbai-embed-large"
+      expect(stub_embeddings).to receive(:create)
+        .with(input: [ "text" ], model: "mxbai-embed-large")
+        .and_return(double("response", data: [ double("embedding", embedding: [ 0.1 ]) ]))
+
+      described_class.new.embed([ "text" ])
+    end
+  end
+
   it "labels errors as Ollama, not OpenAI" do
     messages = [ { role: "user", content: "Hello" } ]
     completions = double("completions")

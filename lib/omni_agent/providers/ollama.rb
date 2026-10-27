@@ -20,6 +20,10 @@ module OmniAgent
         ENV.fetch("OLLAMA_MODEL", "llama3.1")
       end
 
+      def default_embedding_model
+        ENV.fetch("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
+      end
+
       private
 
       def base_url

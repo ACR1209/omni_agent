@@ -45,6 +45,17 @@ RSpec.describe OmniAgent::Providers::Base do
     end
   end
 
+  describe "#embed" do
+    it "raises NotImplementedError by default" do
+      provider = TestProvider.new
+
+      expect { provider.embed([ "Hello" ]) }.to raise_error(
+        NotImplementedError,
+        "TestProvider does not support embeddings"
+      )
+    end
+  end
+
   describe "#validate_messages!" do
     let(:provider) { TestProvider.new }
 

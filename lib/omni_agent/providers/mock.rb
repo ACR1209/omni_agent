@@ -1,4 +1,5 @@
 require "json"
+require "digest"
 
 module OmniAgent
   module Providers
@@ -35,6 +36,12 @@ module OmniAgent
           },
           tool_calls: []
         )
+      end
+
+      # Deterministic placeholder vectors derived from the text, so specs can
+      # index and search without calling a real embedding model.
+      def embed(texts, model: nil)
+        texts.map { |text| Digest::SHA256.digest(text.to_s).bytes.first(8).map { |byte| byte / 255.0 } }
       end
 
       def supports_structured_output?

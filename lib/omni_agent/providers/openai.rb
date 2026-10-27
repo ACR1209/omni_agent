@@ -56,11 +56,25 @@ module OmniAgent
         raise OmniAgent::Error, "Error during #{provider_label} chat: #{e.message}"
       end
 
+      def embed(texts, model: nil)
+        response = with_retries do
+          client.embeddings.create(input: texts, model: model || default_embedding_model)
+        end
+
+        response.data.map(&:embedding)
+      rescue => e
+        raise OmniAgent::Error, "Error during #{provider_label} embed: #{e.message}"
+      end
+
       def supports_structured_output?
         true
       end
 
       protected
+
+      def default_embedding_model
+        "text-embedding-3-small"
+      end
 
       def provider_label
         "OpenAI"
