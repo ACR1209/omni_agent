@@ -8,7 +8,8 @@ namespace :omni_agent do
       model = model_name.safe_constantize
       abort "#{model_name} does not use has_chunks" unless model.respond_to?(:ingest_all)
 
-      model.ingest_all(force: args[:force] == "force")
+      skipped = model.ingest_all(force: args[:force] == "force")
+      skipped.each { |id, message| puts "Skipped #{model_name}##{id}: #{message}" }
       puts "Ingested #{model_name} records."
     end
   end

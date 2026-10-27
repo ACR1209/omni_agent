@@ -280,5 +280,15 @@ RSpec.describe OmniAgent::Chunkable do
       documents.ingest_all(force: true)
       expect(kept.chunks.pluck(:content)).to eq([ "Shipping" ])
     end
+
+    it "skips and returns documents no loader can read" do
+      documents = document_class(:file)
+      unreadable = documents.create!(file: { io: StringIO.new("PK\x03\x04\0\0"), filename: "archive.zip" })
+      readable = documents.create!(file: upload("refunds.pdf"))
+      readable.chunks.delete_all
+
+      expect(documents.ingest_all).to match(unreadable.id => a_string_including("Can't read archive.zip"))
+      expect(readable.chunks.reload.count).to eq(1)
+    end
   end
 end
