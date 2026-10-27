@@ -225,6 +225,35 @@ RSpec.describe OmniAgent::Chunkable do
     end
   end
 
+  describe "Agent.searches" do
+    def search(agent, query, context: {})
+      tool = agent.tool_classes.last.new
+      tool.context = context
+      tool.invoke("query" => query)
+    end
+
+    let(:agent) do
+      Class.new(OmniAgent::Agent) do
+        def self.name
+          "ChunkSearchAgent"
+        end
+
+        searches ChunkedDocument, scope: ->(context) { where(account_id: context[:account_id]) }
+      end
+    end
+
+    it "searches the chunks of the documents in scope, tagged with their document and headings" do
+      document_class(chunker: :markdown)
+      own = ChunkedDocument.create!(body: "# Billing\n\n## Refunds\n\nRefunds take 30 days.", account_id: 1)
+      ChunkedDocument.create!(body: "Refunds take 30 days.", account_id: 2)
+
+      expect(agent.tool_classes.last.name).to end_with("SearchChunkedDocuments")
+      expect(search(agent, "Refunds", context: { account_id: 1 })).to eq(
+        "[ChunkedDocument##{own.id} › Billing › Refunds] ## Refunds\n\nRefunds take 30 days."
+      )
+    end
+  end
+
   describe ".ingest_all" do
     it "ingests documents without chunks, or every document with force: true" do
       documents = document_class

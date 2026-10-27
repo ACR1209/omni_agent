@@ -58,6 +58,13 @@ module OmniAgent
         hits.uniq { |chunk| chunk.try(:context) ? [ chunk[reflection.foreign_key], chunk.context ] : chunk.id }.first(limit)
       end
 
+      # How a `searches` tool shows a chunk: its document, heading path and
+      # text, or its parent section for hierarchical chunks.
+      def format_search_chunk(chunk)
+        label = [ "#{name}##{chunk[reflect_on_association(:chunks).foreign_key]}", *chunk.try(:metadata)&.dig("headings") ]
+        "[#{label.join(' › ')}] #{chunk.try(:context) || chunk.content}"
+      end
+
       # Ingests records that have no chunks yet, or every record with force: true.
       def ingest_all(force: false)
         (force ? all : all.where.missing(:chunks)).find_each(&:ingest!)
