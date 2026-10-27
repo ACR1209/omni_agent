@@ -41,7 +41,7 @@ bundle install
 
 ## Quick Start
 
-1. Install base directories:
+1. Install base directories and the initializer:
 
 ```bash
 bundle exec rails generate omni_agent:install
@@ -355,7 +355,7 @@ Tools can declare MCP-only hints with `title "Get weather"` and `annotations rea
 
 ## Configuration
 
-Global defaults can be configured through `OmniAgent.configure`:
+`rails generate omni_agent:install` writes `config/initializers/omni_agent.rb` with every setting commented out at its default. Global defaults are set through `OmniAgent.configure`:
 
 ```ruby
 OmniAgent.configure do |config|
