@@ -135,7 +135,7 @@ module OmniAgent
             results = OmniAgent::SemanticSearch.call(searched, query, limit: limit, embedder: embedder)
             next "No results." if results.empty?
 
-            results.map { |result| OmniAgent::Agent.__send__(:format_search_result, result) }.join("\n\n---\n\n")
+            results.map { |result| OmniAgent::Agent.__send__(:format_search_result, result, target) }.join("\n\n---\n\n")
           end
         end
 
@@ -234,7 +234,8 @@ module OmniAgent
         @delegated_tool_classes = configured_delegated_tool_classes + [ tool_class ]
       end
 
-      def format_search_result(result)
+      def format_search_result(result, target)
+        return target.format_search_chunk(result) if target.respond_to?(:format_search_chunk)
         return result.to_s unless result.respond_to?(:attributes)
 
         text = if result.respond_to?(:embedding_text)
