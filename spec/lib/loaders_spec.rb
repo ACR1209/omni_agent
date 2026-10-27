@@ -22,7 +22,7 @@ RSpec.describe OmniAgent::Loaders do
     end
 
     it "reads HTML as its visible text, one paragraph per block" do
-      html = "<!DOCTYPE html><html><head><script>alert(1)</script></head><body><h1>Refunds</h1><p>Within <b>30</b> days.</p></body></html>"
+      html = "<!DOCTYPE html><html><head><script>alert(1)</script></head><body><h1>Refunds</h1><p>Within <b>30</b> days.</p><script>track()</script><style>p {}</style></body></html>"
 
       expect(load(html)).to eq("Refunds\n\nWithin 30 days.")
       expect(load(html, filename: "refunds.html")).to eq("Refunds\n\nWithin 30 days.")

@@ -12,7 +12,9 @@ module OmniAgent
 
       def self.call(io, **)
         require "loofah"
-        Loofah.document(io.read).to_text
+        document = Loofah.document(io.read)
+        document.css("script, style, noscript, template").remove
+        document.to_text
       end
     end
   end
