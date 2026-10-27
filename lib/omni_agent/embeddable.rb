@@ -18,6 +18,11 @@ module OmniAgent
       raise ArgumentError, "has_embedding requires at least one attribute" if sources.empty?
       raise ArgumentError, "has_embedding using: must be :neighbor or :ruby" unless BACKENDS.include?(using)
 
+      if later && !defined?(::ActiveJob)
+        raise OmniAgent::MissingDependencyError,
+              "has_embedding later: true needs ActiveJob: add `require \"active_job/railtie\"` to config/application.rb."
+      end
+
       class_attribute :embedding_options, instance_writer: false
       self.embedding_options = { sources: sources.map(&:to_sym), column: column.to_sym, using: using }
 
