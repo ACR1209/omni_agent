@@ -25,6 +25,17 @@ RSpec.describe OmniAgent::Configuration do
       expect(OmniAgent.configuration.embedding_provider).to be_nil
       expect(OmniAgent.configuration.embedding_model).to be_nil
     end
+
+    it "has no embedding job options" do
+      expect(OmniAgent.configuration.embedding_job_options).to eq({})
+    end
+  end
+
+  describe "#embedding_job_options=" do
+    it "rejects options ActiveJob's set doesn't take" do
+      expect { OmniAgent.configuration.embedding_job_options = { queue_name: :embeddings } }
+        .to raise_error(ArgumentError, /Unknown embedding_job_options option :queue_name/)
+    end
   end
 
   describe ".configure" do

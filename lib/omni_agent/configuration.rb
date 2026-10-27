@@ -20,6 +20,15 @@ module OmniAgent
       @mcp_max_request_bytes = 1_048_576
       @embedding_provider = nil
       @embedding_model = nil
+      @embedding_job_options = {}
+    end
+
+    attr_reader :embedding_job_options
+
+    # ActiveJob `set` options for OmniAgent::EmbedJob (has_embedding later: true),
+    # e.g. { queue: :embeddings, priority: 10 }.
+    def embedding_job_options=(options)
+      @embedding_job_options = OmniAgent::Embeddable.validate_job_options!(options, "embedding_job_options")
     end
   end
 end
