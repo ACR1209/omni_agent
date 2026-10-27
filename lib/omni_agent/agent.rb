@@ -108,6 +108,40 @@ module OmniAgent
         add_built_tool(as, tool_class)
       end
 
+      # Gives the agent a Search<Models> tool backed by `target`: a model with
+      # `has_embedding`, a meilisearch-rails model, or anything responding to
+      # `semantic_search(query, limit:)`. `scope` runs on the target with the
+      # run context, e.g. ->(context) { where(account_id: context[:account_id]) }.
+      def searches(target, as: nil, description: nil, scope: nil, limit: 5, embedder: "default")
+        unless OmniAgent::SemanticSearch.searchable?(target)
+          raise ArgumentError,
+                "#{target.name || target.inspect} can't be searched: add `has_embedding` to it, " \
+                "include Meilisearch::Rails, or define `self.semantic_search(query, limit:)`."
+        end
+
+        plural = target.name.to_s.split("::").last.underscore.pluralize
+        tool_description = description || "Search #{plural.humanize(capitalize: false)} by meaning. Returns the closest matches with their ids."
+
+        tool_class = Class.new(OmniAgent::Tool) do
+          description tool_description
+          annotations read_only: true
+
+          input do
+            string :query, description: "What to look for, in natural language."
+          end
+
+          define_method(:execute) do |query:|
+            searched = scope ? target.instance_exec(context, &scope) : target
+            results = OmniAgent::SemanticSearch.call(searched, query, limit: limit, embedder: embedder)
+            next "No results." if results.empty?
+
+            results.map { |result| OmniAgent::Agent.__send__(:format_search_result, result) }.join("\n\n")
+          end
+        end
+
+        add_built_tool(as || "search_#{plural}", tool_class)
+      end
+
       def configured_delegated_tool_classes
         @delegated_tool_classes || inherited_setting(:configured_delegated_tool_classes) || []
       end
@@ -198,6 +232,18 @@ module OmniAgent
       def add_built_tool(as, tool_class)
         delegated_tools_module.const_set(delegated_tool_const_name(as), tool_class)
         @delegated_tool_classes = configured_delegated_tool_classes + [ tool_class ]
+      end
+
+      def format_search_result(result)
+        return result.to_s unless result.respond_to?(:attributes)
+
+        text = if result.respond_to?(:embedding_text)
+          result.embedding_text
+        else
+          result.attributes.select { |_, value| value.is_a?(String) }.map { |key, value| "#{key}: #{value}" }.join("\n")
+        end
+
+        "[#{result.class.name}##{result.id}] #{text}"
       end
 
       def delegated_tools_module
