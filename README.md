@@ -47,6 +47,8 @@ bundle install
 bundle exec rails generate omni_agent:install
 ```
 
+This also adds an OmniAgent section to `AGENTS.md` (and `CLAUDE.md`, if present) that points coding agents at the bundled docs. Pass `--skip-agents-md` to leave those files alone.
+
 2. Generate an agent scaffold:
 
 ```bash
@@ -376,6 +378,18 @@ OmniAgent.configure do |config|
 	config.default_model = "gpt-4o-mini"
 end
 ```
+
+## Documentation for Coding Agents
+
+The full documentation from https://omniagent.activetaskers.com/docs/intro ships inside the gem as plain Markdown in `docs/`, so coding agents (Claude Code, Cursor, Codex...) working in your app can read it offline:
+
+```bash
+bundle exec omni_agent docs                     # index: conventions, typical flows and every page
+bundle exec omni_agent docs mcp/authentication  # one page
+bundle exec omni_agent docs --path              # directory holding the Markdown files
+```
+
+`docs/` is generated from `omniagent-docs/docs`. After editing the site, run `bundle exec rake docs:sync` and commit the result; the spec suite fails if they drift.
 
 ## Running Tests
 

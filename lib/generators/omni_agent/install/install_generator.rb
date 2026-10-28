@@ -38,6 +38,22 @@ module OmniAgent
         end
       RUBY
 
+      class_option :skip_agents_md, type: :boolean, default: false,
+                                    desc: "Don't point AGENTS.md (and CLAUDE.md, if present) at the bundled OmniAgent docs"
+
+      AGENTS_MD_MARKER = "<!-- omni_agent:docs -->".freeze
+      AGENTS_MD_SECTION = <<~MARKDOWN.freeze
+        #{AGENTS_MD_MARKER}
+        ## OmniAgent
+
+        This app builds AI agents with the `omni_agent` gem. Its documentation ships
+        inside the gem: run `bundle exec omni_agent docs` for the index (conventions,
+        typical flows and every page), `bundle exec omni_agent docs <page>` to read a
+        page, or `bundle exec omni_agent docs --path` for the directory. Read it before
+        adding or changing agents (`app/agents/`), tools, MCP servers (`app/mcp_servers/`)
+        or evals (`evals/`), and prefer the `rails generate omni_agent:*` generators.
+      MARKDOWN
+
       def create_agents_root
         agents_root = File.join(destination_root, "app", "agents")
         FileUtils.mkdir_p(agents_root)
@@ -51,10 +67,32 @@ module OmniAgent
         create_file path, INITIALIZER
       end
 
+      def point_coding_agents_at_docs
+        return if options[:skip_agents_md]
+
+        add_docs_section("AGENTS.md", create: true)
+        add_docs_section("CLAUDE.md", create: false)
+      end
+
       def show_next_steps
         say "OmniAgent install complete."
         say "Next: rails generate omni_agent:agent SupportAgent --with-tools Tool1 Tool2"
         say "Expose tools to MCP clients: rails generate omni_agent:mcp_server Support --agents SupportAgent"
+        say "Read the bundled docs: bundle exec omni_agent docs"
+      end
+
+      private
+
+      def add_docs_section(file, create:)
+        path = File.join(destination_root, file)
+
+        if File.exist?(path)
+          return say_status(:identical, file) if File.read(path).include?(AGENTS_MD_MARKER)
+
+          append_to_file file, "\n#{AGENTS_MD_SECTION}"
+        elsif create
+          create_file file, AGENTS_MD_SECTION
+        end
       end
     end
   end

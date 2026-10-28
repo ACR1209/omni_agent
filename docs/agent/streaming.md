@@ -1,0 +1,62 @@
+<!-- Generated from omniagent-docs/docs/agent/streaming.mdx by `bundle exec rake docs:sync`. Do not edit by hand. -->
+<!-- Online version: https://omniagent.activetaskers.com/docs/agent/streaming -->
+
+# Streaming Responses
+
+Any run entrypoint — `run`, an implicit entrypoint, or a `run_aliases` method — can stream its response by prefixing the call with `.stream` and passing a block. Without `.stream` (or without a block), behavior is completely unchanged.
+
+```ruby
+agent.stream.run("Hello") do |event|
+  print event.text if event.text?
+end
+
+ResearchAgent.with(user_id: 42).stream.summarize("Latest trends") do |event|
+  # ...
+end
+```
+
+`.stream` must come **before** the call, not after — the LLM request happens synchronously inside `run`/the entrypoint, so there's nothing to stream once it returns. The call still returns the same `OmniAgent::Providers::Response` it always would; `.stream` only adds a side channel of events emitted while it runs.
+
+## Event Types
+
+Each yielded object is an `OmniAgent::Streaming::Event`:
+
+| Type | Predicate | Fields | When |
+| --- | --- | --- | --- |
+| `:text` | `text?` | `text` | A chunk of the assistant's response text |
+| `:tool_call` | `tool_call?` | `tool_name`, `tool_arguments`, `tool_id` | Right before a tool is invoked |
+| `:tool_result` | `tool_result?` | `tool_name`, `tool_id`, `content`, `error?` | Right after a tool finishes (or raises) |
+| `:done` | `done?` | `response` | Generation is complete; `response` is the final `Response` |
+
+A full tool-calling round looks like:
+
+```
+:text (any content before the tool call, if the model produced any)
+:tool_call
+:tool_result
+:text, :text, ...  (the final answer, streamed)
+:done
+```
+
+## Example: Chat UI
+
+```ruby
+TestAgent.with(user_id: 2).stream.user_query("Search and summarize") do |event|
+  case event.type
+  when :text
+    print event.text
+  when :tool_call
+    puts "\n[using #{event.tool_name}...]"
+  when :tool_result
+    puts "[#{event.error? ? "failed" : "done"}]"
+  when :done
+    puts "\n---"
+  end
+end
+```
+
+## Provider Support
+
+Streaming is implemented per-provider. The built-in `openai` provider streams via the `openai` gem's `client.chat.completions.stream` and emits `:text` events for content deltas; tool-call arguments are not streamed incrementally (a `:tool_call` event fires once the full round finishes and arguments are fully parsed — a tool can't be invoked from a partial JSON fragment). The `ollama` provider streams the same way, since it subclasses `openai` and only swaps the client's `base_url` and defaults. The `mock` provider also supports streaming, splitting its canned response into words, useful for testing UI code without a network call.
+
+Retries via `with_retries` wrap stream *creation* only — a connection drop mid-stream is not retried.

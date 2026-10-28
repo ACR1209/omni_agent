@@ -1,0 +1,372 @@
+<!-- Generated from omniagent-docs/docs/rag.mdx by `bundle exec rake docs:sync`. Do not edit by hand. -->
+<!-- Online version: https://omniagent.activetaskers.com/docs/rag -->
+
+# Retrieval-Augmented Generation (RAG)
+
+RAG lets an agent answer from your own data: it searches your records for the passages relevant to a question and gives them to the model. Omni Agent keeps the vectors in your own database (or Meilisearch) and turns any searchable model into an agent tool. Records are searched whole with [`has_embedding`](#has_embedding), and files or long text in chunks with [`has_chunks`](#documents).
+
+## Quick Start
+
+```bash
+rails generate omni_agent:embeddings Document title content
+bin/rails db:migrate
+bin/rails "omni_agent:embeddings:backfill[Document]"
+```
+
+```ruby
+class SupportAgent < OmniAgent::Agent
+  searches Document, scope: ->(context) { where(account_id: context[:account_id]) }
+end
+
+SupportAgent.with(account_id: current_account.id).run("How do refunds work?")
+```
+
+The agent now has a `SearchDocuments` tool. The model calls it when it needs information, and gets back the closest documents with their ids.
+
+## Supported Stores
+
+| Store | How | Requirements |
+| --- | --- | --- |
+| Postgres | `has_embedding`, via [neighbor](https://github.com/ankane/neighbor) + pgvector | `gem "neighbor"`, the pgvector extension on the server |
+| SQLite | `has_embedding`, via neighbor + sqlite-vec | `gem "neighbor"`, `gem "sqlite-vec"` |
+| MariaDB 11.8+ | `has_embedding`, via neighbor | `gem "neighbor"` |
+| Meilisearch | `include Meilisearch::Rails`, used as-is | [meilisearch-rails](https://github.com/meilisearch/meilisearch-rails) and an embedder on the index |
+| Anything else | Your own `semantic_search(query, limit:)` | — |
+
+MySQL can only search vectors on HeatWave. Use one of the stores above, or see the [Ruby fallback](#ruby-fallback-small-tables-only).
+
+## has_embedding
+
+```ruby
+class Document < ApplicationRecord
+  has_embedding :title, :content
+end
+```
+
+* The listed attributes are joined into `embedding_text`, embedded with [`OmniAgent.embed`](#embeddings) and stored in the `embedding` column.
+* Saving re-embeds only when one of those attributes changed. Blank text stores `nil` without calling the provider.
+* `Document.semantic_search("refund policy", limit: 5)` returns the closest records, by cosine distance. It respects the current scope: `Document.where(account_id: 1).semantic_search(...)`.
+* `Document.embed_all` embeds records with no vector yet. `Document.embed_all(force: true)` re-embeds every record.
+
+Options:
+
+* **`column:`**: The vector column. Defaults to `:embedding`.
+* **`dimensions:`**: Vector size. Required on SQLite, where the column is `binary`. Postgres and MariaDB read it from the column.
+* **`later:`**: `true` embeds in a [background job](#background-embedding) after commit, instead of during `save`. A Hash also sets that model's job options (`later: { queue: :critical }`).
+* **`using: :ruby`**: See [Ruby fallback](#ruby-fallback-small-tables-only).
+
+> **Tip**
+>
+> In tests, set `config.embedding_provider = :mock` so saving a record never calls a real API. The mock returns deterministic 8-dimension vectors.
+
+## Background Embedding
+
+With `later:`, saving a record enqueues `OmniAgent::EmbedJob` after the transaction commits, so a worker never picks up a record that isn't in the database yet. The vector is `nil` until the job runs.
+
+The job is a regular ActiveJob job, so it runs on your app's queue adapter (Sidekiq, Solid Queue, GoodJob, ...). Set the adapter app-wide:
+
+```ruby
+# config/application.rb
+config.active_job.queue_adapter = :sidekiq
+```
+
+> **Warning**
+>
+> If you use Sidekiq only through `Sidekiq::Job` and never set `queue_adapter`, ActiveJob falls back to `:async`: jobs run in threads inside your web process and are lost on restart.
+
+Set the queue and other options for every embed job in the initializer, then override them per model. They also apply to the jobs that [ingest documents](#documents):
+
+```ruby
+# config/initializers/omni_agent.rb
+OmniAgent.configure do |config|
+  config.embedding_job_options = { queue: :embeddings, priority: 10 }
+end
+```
+
+```ruby
+class Document < ApplicationRecord
+  has_embedding :title, :content, later: true                      # queue: :embeddings, priority: 10
+end
+
+class Ticket < ApplicationRecord
+  has_embedding :subject, :body, later: { queue: :critical }        # queue: :critical, priority: 10
+end
+```
+
+Both take ActiveJob's `set` options: `queue`, `priority`, `wait` and `wait_until`. Unknown keys raise an `ArgumentError`. `priority` only matters on backends that support it (Solid Queue, GoodJob, Delayed Job). Sidekiq ignores it and orders work by queue, so use a separate queue there instead. Make sure your workers process the queue you pick (for Sidekiq, `sidekiq -q embeddings -q default`).
+
+* **Failures**: errors from the embedding API reach your job backend, which retries them (Sidekiq retries by default). Rate limits and timeouts are first retried inside the provider (`max_retries`).
+* **Deleted records**: a job whose record was deleted before it ran is discarded, not retried.
+
+## The Generator
+
+```bash
+rails generate omni_agent:embeddings Document title content
+```
+
+* Detects the store from your database adapter (override with `--backend=pgvector|sqlite|mariadb|ruby`).
+* Detects the vector size by embedding one string with your configured model (override with `--dimensions=N`, e.g. when offline).
+* Writes the migration: a `vector` column with a cosine HNSW index on Postgres (pgvector can't index above 2,000 dimensions, so larger vectors are left unindexed), a `binary` column plus `config/initializers/neighbor.rb` on SQLite, a `vector` column on MariaDB.
+* Adds `has_embedding :title, :content` to the model.
+
+Other options: `--column=NAME` and `--later`.
+
+## searches
+
+```ruby
+class SupportAgent < OmniAgent::Agent
+  searches Document
+  searches Article, as: :search_help_center, limit: 3
+end
+```
+
+Each call adds a read-only tool named `Search<Models>`. Its result lists each match as `[Document#12] <text>`, so the model can cite ids. The text is the record's `embedding_text`; for other models it's their string attributes. Define `embedding_text` on a model to control what the model sees.
+
+Options:
+
+* **`scope:`**: A lambda run on the model with the run's [context](agent/run-entrypoints.md). Use it for tenant isolation. Without it, the tool searches every record.
+* **`limit:`**: Results per search. Defaults to `5`.
+* **`as:`** / **`description:`**: Rename the tool or replace its description.
+* **`embedder:`**: The Meilisearch embedder to search with. Defaults to `"default"`.
+
+> **Warning**
+>
+> Always pass `scope:` in a multi-tenant app. Context comes from your code (`Agent.with(account_id: ...)`), never from the model, so the model can't widen it.
+
+Because these are normal tools, they also work over [MCP](index.md#mcp-servers) and with [delegation](agent/delegation.md). Combine them with [structured output](agent/structured-output.md) to get citations back as data:
+
+```ruby
+output do
+  string :answer
+  array :source_ids, items_type: "integer"
+end
+```
+
+## Documents
+
+To answer from files (PDFs, Markdown, HTML) or long text, split them into chunks and search the chunks:
+
+```bash
+rails generate omni_agent:chunks Document file
+bin/rails active_storage:install # if you haven't
+bin/rails db:migrate
+```
+
+```ruby
+class Document < ApplicationRecord
+  has_one_attached :file
+  has_chunks :file
+end
+
+class SupportAgent < OmniAgent::Agent
+  searches Document, scope: ->(context) { where(account_id: context[:account_id]) }
+end
+
+Document.create!(account_id: 1, file: params[:file]) # read, split and embedded in a background job
+```
+
+When the source changes, `OmniAgent::IngestJob` reads it into text, splits it, embeds the chunks in batches and replaces the document's chunks. They're stored in a `DocumentChunk` model that `belongs_to :document` and uses `has_embedding :content`, so every [store](#supported-stores) `has_embedding` supports works.
+
+The source can be:
+
+* An ActiveStorage attachment (`has_one_attached`)
+* A text column, such as Markdown kept in the database
+* Rich text (`has_rich_text`), read as plain text
+* Any method that returns a String or an IO
+
+### Loaders
+
+A loader turns a document into text. By default (`as: :auto`), the format is detected from the file's content type, then its extension, then its first bytes:
+
+| Loader | Reads | Needs |
+| --- | --- | --- |
+| `:pdf` | `.pdf` files with a text layer | `gem "pdf-reader"` |
+| `:html` | `.html`, `.htm`: the visible text, without scripts or styles | — |
+| `:markdown` | `.md`, `.markdown`, `.mdx`, as they are | — |
+| `:text` | `.txt`, `.csv`, any `text/*` type, and any file that doesn't look binary | — |
+
+Files no loader can read (a zip, an image) are skipped with a warning in the log, and never fail the save. To accept only one format, enforce its loader. Other files are then rejected by validation when the record is saved:
+
+```ruby
+has_chunks :file, as: :pdf # "File must be a PDF file"
+```
+
+For other formats, pass any object that responds to `call(io, filename:, content_type:)` and returns a String:
+
+```ruby
+has_chunks :file, as: ->(io, **) { Docx::Document.open(io).text }
+```
+
+To have auto-detection use it too, register it in the initializer with a `handles?` method:
+
+```ruby
+class DocxLoader
+  def self.handles?(filename:, content_type:)
+    File.extname(filename.to_s) == ".docx"
+  end
+
+  def self.call(io, **)
+    Docx::Document.open(io).text
+  end
+end
+
+OmniAgent.configure do |config|
+  config.document_loaders = { docx: DocxLoader } # tried before the built-in loaders
+end
+```
+
+> **Note**
+>
+> Scanned PDFs are images, with no text to read, so they produce no chunks. Run them through OCR in a custom loader.
+
+### Chunkers
+
+| Chunker | Splits |
+| --- | --- |
+| `:recursive` (default) | On the coarsest boundary that fits: headings, then paragraphs, lines, sentences, words. Each chunk starts with the end of the previous one (`overlap`), so a sentence cut at a boundary is still found. |
+| `:markdown` | One chunk per Markdown section, tagged with its heading path (`Billing › Refunds`). Long sections are split further. |
+| `:hierarchical` | Small chunks for precise matching, each carrying its whole section. The search matches the small chunk, and the agent reads the section around it. |
+
+```ruby
+has_chunks :file, chunker: :hierarchical, size: 500, overlap: 100
+```
+
+`size` and `overlap` are in characters (defaults: `1000` and `200`, about 250 and 50 tokens). For `:hierarchical`, `size` is the small chunk and sections go up to four times that.
+
+A custom chunker is any object that responds to `call(text, size:, overlap:)` and returns Strings, or Hashes with `content:` and optional `context:` (what the agent reads instead of `content`) and `metadata:`:
+
+```ruby
+has_chunks :body, chunker: ->(text, **) { text.split("\n---\n") }
+```
+
+### Options
+
+* **`as:`**: The [loader](#loaders). Defaults to `:auto`.
+* **`chunker:`**: The [chunker](#chunkers). Defaults to `:recursive`.
+* **`size:`** / **`overlap:`**: Chunk size and overlap, in characters.
+* **`later:`**: Ingests in `OmniAgent::IngestJob` by default, with the [`embedding_job_options`](#background-embedding). A Hash overrides them for this model (`later: { queue: :documents }`), and `false` ingests right after commit, in the request.
+* **`class_name:`**: The chunk model. Defaults to `"#{model}Chunk"`.
+
+### Updating and Searching
+
+* Changing the source replaces the chunks. Chunks whose text didn't change keep their vector, so editing a page of a long document only embeds that page.
+* Deleting the document deletes its chunks.
+* `bin/rails "omni_agent:chunks:ingest[Document]"` ingests documents that have no chunks yet, for example ones created before you added `has_chunks`. Add `,force` to re-ingest every document, for example after changing the chunker. Files no loader can read are listed and skipped.
+* `Document.where(account_id: 1).semantic_search("refunds")` returns the closest `DocumentChunk` records of those documents.
+* `searches Document` searches the chunks of the documents in `scope:`, and lists each match as `[Document#12 › Billing › Refunds] <text>`.
+
+## Meilisearch
+
+meilisearch-rails models work with `searches` as they are:
+
+```ruby
+class Article < ApplicationRecord
+  include Meilisearch::Rails
+
+  meilisearch do
+    attribute :title, :body, :account_id
+    filterable_attributes [ :account_id ]
+  end
+end
+
+class SupportAgent < OmniAgent::Agent
+  searches Article, scope: ->(context) { where(account_id: context[:account_id]) }
+end
+```
+
+The tool runs a hybrid (keyword + semantic) search with the index's `default` embedder (pick another with `embedder:`). Meilisearch embeds documents and queries itself, so configure an embedder on the index. meilisearch-rails has no setting for it, so do it once, for example from a console or a migration:
+
+```ruby
+Article.index.update_embedders(
+  default: { source: "openAi", apiKey: ENV["OPENAI_ACCESS_TOKEN"], model: "text-embedding-3-small", documentTemplate: "{{doc.title}} {{doc.body}}" }
+)
+```
+
+Equality conditions in `scope:` (`where(account_id: 1)`) are sent to Meilisearch as filters, so those attributes must be both indexed (listed in `attribute`) and `filterable_attributes`. If they're missing, the search matches nothing and the tool returns "No results.". Every hit is then checked against the full scope in your database, so a condition Meilisearch can't express is still enforced.
+
+## Any Other Store
+
+`searches` works with anything that responds to `semantic_search(query, limit:)` and returns records (or strings):
+
+```ruby
+class HelpCenter
+  def self.semantic_search(query, limit:)
+    QDRANT.search( # your vector store clientvector: OmniAgent.embed(query), limit: limit).map { |hit| hit["payload"]["text"] }
+  end
+end
+
+searches HelpCenter
+```
+
+## Always Retrieve First
+
+To retrieve before every generation instead of letting the model decide, use a [`before_generation` callback](agent/callbacks.md). Instance variables it sets are available in the prompt:
+
+```ruby
+class SupportAgent < OmniAgent::Agent
+  before_generation :retrieve
+
+  def retrieve(payload)
+    @passages = Document.semantic_search(payload[:input], limit: 5)
+  end
+end
+```
+
+```erb
+<%# app/agents/support_agent/prompt.md.erb %>
+Answer using only the sources below and cite their ids.
+
+<% @passages.each do |passage| %>
+[<%= passage.id %>] <%= passage.embedding_text %>
+<% end %>
+```
+
+This saves a round trip but always pays for retrieval, even for questions that don't need it. `searches` is usually the better default.
+
+## Embeddings
+
+`OmniAgent.embed` turns text into vectors with the configured provider. `has_embedding` uses it, and you can call it directly:
+
+```ruby
+OmniAgent.embed("How do refunds work?")         # => [0.0123, -0.0456, ...]
+OmniAgent.embed([ "first chunk", "second chunk" ]) # => [[...], [...]]
+```
+
+| Provider | Default embedding model |
+| --- | --- |
+| `:openai` | `text-embedding-3-small` |
+| `:ollama` | `nomic-embed-text` (or `OLLAMA_EMBEDDING_MODEL`) |
+| `:mock` | Deterministic 8-dimension vectors, no network calls |
+
+Embedding settings are separate from the chat model:
+
+```ruby
+OmniAgent.configure do |config|
+  config.embedding_provider = :openai               # defaults to default_provider
+  config.embedding_model = "text-embedding-3-large" # defaults to the provider's model
+end
+```
+
+Override per call with `OmniAgent.embed(text, provider: :ollama, model: "mxbai-embed-large")`.
+
+> **Warning**
+>
+> Index and query with the same provider and model. Vectors from different models are not comparable, and search returns garbage without raising. After changing models, update the column's dimensions in a migration and run `bin/rails "omni_agent:embeddings:backfill[Document,force]"`.
+
+## Ruby Fallback (Small Tables Only)
+
+> **Danger**
+>
+> **Avoid this in production.** The Ruby fallback loads **every row of the table** and computes similarity in Ruby on **each search**. It gets slower and uses more memory with every record you add, and it has no index. Use it only for prototypes or tables under ~10k rows, when your database can't search vectors (plain MySQL). Move to Postgres, SQLite or MariaDB with neighbor as soon as you can.
+
+```bash
+rails generate omni_agent:embeddings Document title content --backend=ruby
+```
+
+```ruby
+class Document < ApplicationRecord
+  has_embedding :title, :content, using: :ruby # stored in a json column
+end
+```
+
+Everything else (`semantic_search`, `searches`, `embed_all`, the backfill task) works the same, so switching to neighbor later only means changing the column and removing `using: :ruby`.

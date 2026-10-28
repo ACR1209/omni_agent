@@ -14,6 +14,16 @@ rails generate omni_agent:install
 
 Creates the `app/agents` root directory and `config/initializers/omni_agent.rb`, which lists every [configuration](./configuration.mdx) setting commented out at its default. An existing initializer is left untouched. Run this once per application, right after installing the gem.
 
+It also adds an OmniAgent section to `AGENTS.md` (created if missing) and to `CLAUDE.md` (only if it already exists). The section tells coding agents such as Claude Code, Cursor or Codex to read the documentation bundled with the gem:
+
+```bash
+bundle exec omni_agent docs                     # index: conventions, typical flows and every page
+bundle exec omni_agent docs mcp/authentication  # one page
+bundle exec omni_agent docs --path              # directory holding the Markdown files
+```
+
+Running the generator again doesn't duplicate the section. Pass `--skip-agents-md` to leave both files alone.
+
 ## Agent Generator
 
 ```bash
