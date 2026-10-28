@@ -1,0 +1,93 @@
+<!-- Generated from omniagent-docs/docs/intro.mdx by `bundle exec rake docs:sync`. Do not edit by hand. -->
+<!-- Online version: https://omniagent.activetaskers.com/docs/intro -->
+
+# Introduction
+
+**Omni Agent** is a gem focused on generating agentic code the Rails way. 
+
+It is designed to be highly opinionated, fully embracing the "convention over configuration" philosophy. 
+
+Let's get your first AI agent up and running **in less than 5 minutes**.
+
+## Getting Started
+
+### 1. Install the Gem
+First, add Omni Agent to your Rails application. You can add it directly to your `Gemfile`:
+
+```ruby
+gem 'omni_agent'
+```
+
+Or, run the following command in your terminal:
+
+```bash
+bundle add omni_agent
+```
+
+### 2. Install an AI Provider
+
+Omni Agent is provider-agnostic, meaning you need to install the specific gem for the AI provider you plan to use. You can find a full list of supported providers [here](supported-providers.md).
+
+For example, to use OpenAI:
+
+```bash
+bundle add openai
+```
+
+### 3. Run the Install Generator
+
+Prepare your project by running the Omni Agent installation generator:
+
+```bash
+rails generate omni_agent:install
+```
+
+This will set up the necessary foundation for your agents, starting by creating the core `app/agents` directory.
+
+> **Note:** As of version `0.1.4`, this command is lightweight. It lays the groundwork for more advanced configurations and planned features in future releases.
+
+## Create Your First Agent
+
+With the setup complete, you can use the built-in generator to scaffold your first agent.
+
+Run the following command to create a `DemoAgent`, specify the model, and attach a couple of tools:
+
+```bash
+rails generate omni_agent:agent DemoAgent --model gpt-4o-mini --with-tools DemoTool SecondDemoTool
+```
+
+This will generate the following directory structure inside `app/agents/`:
+
+```text
+app/agents/
+├── demo_agent.rb
+└── demo_agent/
+    ├── prompt.md.erb
+    └── tools/
+        ├── demo_tool.rb
+        └── second_demo_tool.rb
+
+```
+
+**What are these files?**
+
+* **`demo_agent.rb`**: The main configuration file dictating how your agent behaves.
+* **`prompt.md.erb`**: The core system prompt injected into your agent. It uses ERB, allowing for dynamic Ruby interpolation.
+* **`tools/`**: The directory housing the custom tools (`DemoTool`, `SecondDemoTool`) at your agent's disposal.
+
+## Calling the Agent
+
+After running the generator, your agent is ready to go out of the box. You can quickly test it in your Rails console (`rails c`) or anywhere in your app:
+
+```ruby
+DemoAgent.new.run("Hello!")
+```
+
+Congratulations - you are successfully using Omni Agent!
+
+## What Else Can It Do?
+
+* **[Tools](tools.md)** with typed, validated input schemas.
+* **[Multi-agent delegation](agent/delegation.md)**, **[streaming](agent/streaming.md)** and **[callbacks](agent/callbacks.md)**.
+* **[Evals](index.md#evals)** with golden sets and LLM-as-judge scoring.
+* **[MCP servers](index.md#mcp-servers)**: expose your tools and agents to Claude Code, Claude Desktop, Cursor and other MCP clients.

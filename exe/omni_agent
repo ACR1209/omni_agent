@@ -3,13 +3,15 @@
 
 require "optparse"
 
-options = { fresh: false }
+options = { fresh: false, path: false }
 parser = OptionParser.new do |opts|
   opts.banner = <<~BANNER
     Usage: omni_agent eval [pattern] [options]
            omni_agent mcp <ServerClass>
+           omni_agent docs [page] [--path]
   BANNER
   opts.on("--fresh", "Clear the eval cache before running") { options[:fresh] = true }
+  opts.on("--path", "Print the path of the bundled docs instead of their contents") { options[:path] = true }
 end
 
 def require_rails_environment(command)
@@ -48,6 +50,23 @@ when "mcp"
 
   require_rails_environment("mcp")
   OmniAgent::MCP::Stdio.start(server)
+when "docs"
+  parser.parse!(ARGV)
+  require_relative "../lib/omni_agent/docs"
+
+  page = ARGV.shift
+  file = OmniAgent::Docs.path(page || "index")
+  unless file
+    warn "Unknown docs page: #{page.inspect}. Available pages:"
+    warn OmniAgent::Docs.pages.map { |name| "  #{name}" }
+    exit 1
+  end
+
+  if options[:path]
+    puts page ? file : OmniAgent::Docs.root
+  else
+    puts File.read(file)
+  end
 when nil
   warn parser.banner
   exit 1
