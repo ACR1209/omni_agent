@@ -57,7 +57,7 @@ rails generate omni_agent:agent SupportAgent --with-tools
 rails generate omni_agent:stock_agent InvoiceOcr --from=ocr --fields=invoice_number:string total:number
 ```
 
-Generates `app/agents/invoice_ocr.rb`, a subclass of the chosen [stock agent](./stock-agents.mdx) with an `output` block, and an optional `app/agents/invoice_ocr/prompt.md.erb` for extra instructions.
+Generates `app/agents/invoice_ocr.rb`, a subclass of the chosen [stock agent](./stock-agents/overview.mdx) with an `output` block, and an optional `app/agents/invoice_ocr/prompt.md.erb` for extra instructions.
 
 ### Options
 

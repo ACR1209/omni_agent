@@ -1,0 +1,53 @@
+---
+sidebar_position: 2
+---
+
+# OCR
+
+`OmniAgent::StockAgents::OCR` reads photos, scans and PDFs with a vision model (`gpt-4o` by default). Its default output is `{ text: "..." }`, the full text in reading order; declare your own `output` to extract fields instead.
+
+```bash
+rails generate omni_agent:stock_agent InvoiceOcr --from=ocr --fields=invoice_number:string total:number paid:boolean
+```
+
+```ruby
+# app/agents/invoice_ocr.rb
+class InvoiceOcr < OmniAgent::StockAgents::OCR
+  output do
+    string :invoice_number
+    number :total
+    boolean :paid
+  end
+end
+
+InvoiceOcr.new.run(Pathname("invoice.jpg")).structured_output
+# => { invoice_number: "A-1042", total: 120.5, paid: true }
+```
+
+## Input
+
+`run` takes one source or an array of them. Several sources are treated as pages of the same document, in order:
+
+```ruby
+InvoiceOcr.new.run(Pathname("invoice.pdf"))
+InvoiceOcr.new.run([ params[:front], params[:back] ])          # uploaded files
+InvoiceOcr.new.run(record.scans.to_a)                          # ActiveStorage attachments
+InvoiceOcr.new.run([ "Only the line items", Pathname("page1.png"), URI("https://example.com/page2.png") ])
+```
+
+| Source | Sent as |
+| --- | --- |
+| `Pathname`, `File`, `StringIO`, uploaded files (anything with `read`) | Base64 data URL |
+| ActiveStorage attachments and blobs (anything with `download`) | Base64 data URL |
+| `URI("https://...")` | Image URL the provider fetches |
+| `String` | Text instructions sent with the images |
+
+Files must be PNG, JPEG, GIF, WEBP or PDF; the type is read from the file's bytes, not its name. A plain string is never treated as a file path, so text from your users can't make the agent read files from your server. Pass a `Pathname` to read a file.
+
+## Providers
+
+PDFs are sent as file parts, which OpenAI supports. Ollama only accepts base64 images, so with Ollama use a vision model (e.g. `llama3.2-vision`) and pass image files, not PDFs or URIs.
+
+## Prompt
+
+The stock prompt tells the model to transcribe only what is visible, keep numbers and dates exactly as written, and leave illegible fields empty instead of guessing. Add document-specific instructions in `app/agents/invoice_ocr/prompt.md.erb`; they are appended after it (see [Prompts](./overview.mdx#prompts)).
