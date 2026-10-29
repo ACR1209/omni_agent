@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0](https://github.com/ACR1209/omni_agent/compare/omni_agent/v0.1.11...omni_agent/v0.2.0) (2026-10-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **agent:** agent subclasses now inherit their parent's class-level settings: `provider`/model, `options`, tags, `before_generation`/ `after_generation` callbacks, tools, delegated tools and `output`. Apps with agent hierarchies (e.g. an `ApplicationAgent` base class) will pick up the parent's settings in every subclass.
+
+### Features
+
+* add OmniAgent.embed with configurable embedding provider and model ([19214df](https://github.com/ACR1209/omni_agent/commit/19214df320c33b60559ce4eca9e65d77aedbafb8))
+* **agent:** add searches macro for semantic search tools ([764a756](https://github.com/ACR1209/omni_agent/commit/764a7568cc23c47bf42cea8719757d01fc8a3dbd))
+* **agent:** add structured output and stock agents scaffold ([c23fb4a](https://github.com/ACR1209/omni_agent/commit/c23fb4a89f30dbb55916ce886deafafd65d7dba8))
+* **agent:** address review feedback on structured output and inheritance ([143ce4b](https://github.com/ACR1209/omni_agent/commit/143ce4b5668edab2c06ed65071fd208846fd7457))
+* **agent:** search has_chunks models with searches ([b794bb2](https://github.com/ACR1209/omni_agent/commit/b794bb2d1ef0cb94f45dfec674cf3670828987b7))
+* **chunkable:** add has_chunks to chunk, embed and store documents ([414504b](https://github.com/ACR1209/omni_agent/commit/414504b3e5a26b7868a2fa1da938d48dd635518c))
+* **chunkers:** add recursive, markdown and hierarchical chunkers ([2f8a97d](https://github.com/ACR1209/omni_agent/commit/2f8a97d8b9cc7016092a0233882960fff9f9270c))
+* **docs:** bundle plain-Markdown docs in the gem for coding agents ([3cf1270](https://github.com/ACR1209/omni_agent/commit/3cf12705bef39064680463dc088322969de50518))
+* **embeddable:** add has_embedding macro for ActiveRecord models ([32d716d](https://github.com/ACR1209/omni_agent/commit/32d716dded4e9820f841a6c89fa59b9a04281bc4))
+* **embeddable:** configure embed job options globally and per model ([f4dcb39](https://github.com/ACR1209/omni_agent/commit/f4dcb39850fe53e5b80a408f548ae4b8cdea3bb4))
+* **generators:** add omni_agent:chunks to set up a chunk model ([ad60360](https://github.com/ACR1209/omni_agent/commit/ad60360f630c33eae6d32f9d2acdd3b246caad45))
+* **generators:** add omni_agent:embeddings generator ([5af765b](https://github.com/ACR1209/omni_agent/commit/5af765b454975b23f85903558d1832ba34ec32aa))
+* **generators:** write a commented initializer in omni_agent:install ([c0f22aa](https://github.com/ACR1209/omni_agent/commit/c0f22aabe3affc4e17e60548288fa855cb968764))
+* **loaders:** read PDF, HTML, Markdown and text documents with auto-detection ([c294323](https://github.com/ACR1209/omni_agent/commit/c2943237772e44983fa3bc62bb669d256ba2b4a3))
+* **providers:** add embed for text embeddings ([519f169](https://github.com/ACR1209/omni_agent/commit/519f16968896c8f0580591e2e7af6b93e26df3ae))
+* **stock_agents:** add OCR stock agent with image and PDF input ([b2683f3](https://github.com/ACR1209/omni_agent/commit/b2683f3532772e3d00a037e22d425164f8f785dd))
+* **tasks:** add omni_agent:embeddings:backfill rake task ([2aa06f7](https://github.com/ACR1209/omni_agent/commit/2aa06f7c24895caa2eb1b7ce8a1493f783e0ffe9))
+
+
+### Bug Fixes
+
+* **agent:** separate search results with a rule ([bd018cc](https://github.com/ACR1209/omni_agent/commit/bd018cc09626dcfcde524fccdbcbc2fc8222052e))
+* **chunkable:** lock the document while replacing its chunks ([5e695e6](https://github.com/ACR1209/omni_agent/commit/5e695e63384e57afbbd96571bbf59bd633a0bda7))
+* **chunkable:** skip unreadable documents in ingest_all ([9b6b68d](https://github.com/ACR1209/omni_agent/commit/9b6b68dab3cb8686d3da7c46c0c4032015b2d4d7))
+* **chunkers:** skip Markdown headings with nothing under them ([e228627](https://github.com/ACR1209/omni_agent/commit/e228627ac450902f33064f4dc1bd25c589b1f5bb))
+* **embeddable:** discard embed jobs for deleted records ([1b69efc](https://github.com/ACR1209/omni_agent/commit/1b69efcba25e26419ffadaa9721f0c888b9a856a))
+* **embeddable:** explain how to enable ActiveJob for later: true ([7f46446](https://github.com/ACR1209/omni_agent/commit/7f46446d993f036b4fa27fbb21035b65ae7bbae3))
+* **engine:** load ActiveJob with the engine ([1392629](https://github.com/ACR1209/omni_agent/commit/1392629e4892a5f6ed1c38b5a2eb34cdddda7e00))
+* **engine:** remove unused plugin scaffolding ([fa97033](https://github.com/ACR1209/omni_agent/commit/fa97033a96a7bff2ce4d4355008766d7fed7df89))
+* **generators:** explain connection errors when detecting MariaDB ([a13a770](https://github.com/ACR1209/omni_agent/commit/a13a770ba607905fad8ee4d21fb168ed91b75429))
+* **generators:** number migrations after the newest one ([01683a9](https://github.com/ACR1209/omni_agent/commit/01683a9e4efa7d05ea05e590615392ae78545180))
+* **loaders:** drop scripts and styles anywhere in HTML ([972fa94](https://github.com/ACR1209/omni_agent/commit/972fa944fd224ace1c909ccbd1c4a57d254a81f7))
+* **providers:** pass content-part arrays through to OpenAI ([22a5354](https://github.com/ACR1209/omni_agent/commit/22a535464b8053365a9fe4b8f1f850768e5a6472))
+
 ## [0.1.11](https://github.com/ACR1209/omni_agent/compare/omni_agent/v0.1.10...omni_agent/v0.1.11) (2026-10-15)
 
 
