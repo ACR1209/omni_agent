@@ -389,7 +389,7 @@ bundle exec omni_agent docs mcp/authentication  # one page
 bundle exec omni_agent docs --path              # directory holding the Markdown files
 ```
 
-`docs/` is generated from `omniagent-docs/docs`. After editing the site, run `bundle exec rake docs:sync` and commit the result; the spec suite fails if they drift.
+`docs/` is generated from `omniagent-docs/docs` by `bundle exec rake docs:sync`, which `rake build` runs first. It isn't committed, so a gem installed from git (`gem "omni_agent", github: ...`) doesn't include it; use the docs site instead.
 
 ## Running Tests
 

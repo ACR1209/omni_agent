@@ -13,6 +13,10 @@ require "bundler/gem_tasks"
 Rake::Task["release"].clear
 task release: [ "build", "release:rubygem_push" ]
 
+# docs/ is generated from omniagent-docs/ (see rakelib/docs.rake) and not
+# committed, but the gemspec packages it, so generate it before every build.
+task build: "docs:sync"
+
 RSpec::Core::RakeTask.new(:spec)
 
 task default: :spec
