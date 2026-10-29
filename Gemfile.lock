@@ -178,7 +178,7 @@ GEM
       racc (~> 1.4)
     nokogiri (1.19.4-x86_64-linux-musl)
       racc (~> 1.4)
-    openai (0.99.0)
+    openai (0.111.0)
       connection_pool (>= 2.2.3)
       logger
     parallel (2.3.0)
@@ -356,7 +356,7 @@ DEPENDENCIES
   meilisearch-rails
   neighbor
   omni_agent!
-  openai (~> 0.99.0)
+  openai (~> 0.111.0)
   pdf-reader
   propshaft
   puma

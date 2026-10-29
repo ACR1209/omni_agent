@@ -26,7 +26,7 @@ group :development, :test do
   gem "vcr"
   gem "webmock"
   gem "dotenv-rails"
-  gem "openai", "~> 0.99.0"
+  gem "openai", "~> 0.111.0"
   gem "jwt"
   gem "neighbor"
   gem "meilisearch-rails"
