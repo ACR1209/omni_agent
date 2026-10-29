@@ -34,6 +34,21 @@ RSpec.describe OmniAgent::Providers::OpenAI do
     expect(result.raw_request).to eq(model: "gpt-test", messages: messages)
   end
 
+  it "passes content-part arrays through untouched" do
+    messages = [ { role: "user", content: [
+      { type: "text", text: "Read this" },
+      { type: "image_url", image_url: { url: "data:image/png;base64,AAAA" } }
+    ] } ]
+
+    completions = double("completions")
+    allow(OpenAI::Client).to receive(:new).and_return(instance_double(OpenAI::Client, chat: double("chat", completions: completions)))
+    expect(completions).to receive(:create)
+      .with(model: "gpt-test", messages: messages)
+      .and_return({ "choices" => [ { "message" => { "content" => "ok" } } ] })
+
+    described_class.new(api_key: "token", model: "gpt-test").chat(messages: messages)
+  end
+
   describe "#embed" do
     def stub_embeddings(api_key: "token")
       embeddings = double("embeddings")
