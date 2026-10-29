@@ -147,7 +147,11 @@ class InvoiceOcr < OmniAgent::StockAgents::OCR
 		number :total
 	end
 end
+
+InvoiceOcr.new.run([ Pathname("page1.jpg"), Pathname("page2.jpg") ]).structured_output
 ```
+
+The OCR stock agent reads images and PDFs from paths, uploaded files, ActiveStorage attachments or URLs, one at a time or several pages together.
 
 To add a stock agent to the gem itself, run `bin/rake "stock_agent:new[name]"` from the gem repository.
 
