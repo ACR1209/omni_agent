@@ -28,7 +28,7 @@ end
 and an optional `app/agents/invoice_ocr/prompt.md.erb`. Edit the `output` block with the full DSL (descriptions, `required: false`, enums, nested arrays and hashes), then run it like any agent:
 
 ```ruby
-InvoiceOcr.new.run(document_text).structured_output
+InvoiceOcr.new.run(Pathname("invoice.jpg")).structured_output
 # => { invoice_number: "A-1042", total: 120.5, paid: true }
 ```
 
@@ -37,6 +37,32 @@ A subclass inherits everything from the stock agent — provider, model, `option
 ### Prompts
 
 The stock agent's prompt (shipped inside the gem) is rendered first. If your subclass has `app/agents/<agent_name>/prompt.md.erb`, it is appended after it, so you can add project-specific instructions without copying the stock prompt. The same applies to [run alias](/docs/agent/run-entrypoints) prompt files.
+
+## Available Stock Agents
+
+### OCR
+
+`OmniAgent::StockAgents::OCR` reads photos, scans and PDFs with a vision model (`gpt-4o` by default). Its default output is `{ text: "..." }`, the full text in reading order; declare your own `output` to extract fields instead.
+
+`run` takes one source or an array of them. Several sources are treated as pages of the same document, in order:
+
+```ruby
+InvoiceOcr.new.run(Pathname("invoice.pdf"))
+InvoiceOcr.new.run([ params[:front], params[:back] ])          # uploaded files
+InvoiceOcr.new.run(record.scans.to_a)                          # ActiveStorage attachments
+InvoiceOcr.new.run([ "Only the line items", Pathname("page1.png"), URI("https://example.com/page2.png") ])
+```
+
+| Source | Sent as |
+| --- | --- |
+| `Pathname`, `File`, `StringIO`, uploaded files (anything with `read`) | Base64 data URL |
+| ActiveStorage attachments and blobs (anything with `download`) | Base64 data URL |
+| `URI("https://...")` | Image URL the provider fetches |
+| `String` | Text instructions sent with the images |
+
+Files must be PNG, JPEG, GIF, WEBP or PDF; the type is read from the file's bytes, not its name. A plain string is never treated as a file path, so text from your users can't make the agent read files from your server. Pass a `Pathname` to read a file.
+
+PDFs are sent as file parts, which OpenAI supports. Ollama only accepts base64 images, so with Ollama use a vision model (e.g. `llama3.2-vision`) and pass image files, not PDFs or URIs.
 
 ### Listing Stock Agents
 
