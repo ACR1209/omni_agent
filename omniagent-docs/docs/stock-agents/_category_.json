@@ -1,0 +1,9 @@
+{
+  "label": "Stock Agents",
+  "position": 6.5,
+  "link": {
+    "type": "generated-index",
+    "description": "Ready-made agents shipped with the gem that your project subclasses and customizes."
+  },
+  "collapsed": false
+}

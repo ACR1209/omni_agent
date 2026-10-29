@@ -55,7 +55,7 @@ module DocsSync
     * **Pick a provider or model:** [Supported Providers](supported-providers.md),
       [Configuration](configuration.md), [Change an Agent's Provider or Model](agent/provider.md).
     * **Compose agents:** [Multi-Agent Delegation](agent/delegation.md),
-      [Stock Agents](stock-agents.md).
+      [Stock Agents](stock-agents/overview.md).
     * **Observe a run:** [Generation Callbacks](agent/callbacks.md),
       [Streaming Responses](agent/streaming.md).
     * **Answer from your own data (RAG):** [Retrieval-Augmented Generation](rag.md)
