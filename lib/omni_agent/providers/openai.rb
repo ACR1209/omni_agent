@@ -18,7 +18,8 @@ module OmniAgent
         messages = messages.map do |msg|
           clean_msg = msg.reject { |_, v| v.nil? }
 
-          if !clean_msg.key?(:tool_calls) && !clean_msg[:content].is_a?(String)
+          # Arrays are OpenAI content parts (text, image_url, file) and pass through.
+          if !clean_msg.key?(:tool_calls) && !clean_msg[:content].is_a?(String) && !clean_msg[:content].is_a?(Array)
             clean_msg[:content] = ""
           end
 
