@@ -125,14 +125,18 @@ module OmniAgent
 
     def validate_enums!(kwargs)
       properties.each do |name, property|
-        allowed_values = property[:enum]
-        next unless allowed_values
-
         key = name.to_sym
         next unless kwargs.key?(key)
 
-        unless allowed_values.include?(kwargs[key])
-          raise ArgumentError, "invalid value for #{name}: #{kwargs[key].inspect} (must be one of: #{allowed_values.join(', ')})"
+        if (allowed_values = property[:enum])
+          unless allowed_values.include?(kwargs[key])
+            raise ArgumentError, "invalid value for #{name}: #{kwargs[key].inspect} (must be one of: #{allowed_values.join(', ')})"
+          end
+        elsif (allowed_values = property.dig(:items, :enum)) && kwargs[key].is_a?(Array)
+          invalid = kwargs[key].reject { |value| allowed_values.include?(value) }
+          unless invalid.empty?
+            raise ArgumentError, "invalid value in #{name}: #{invalid.first.inspect} (must be one of: #{allowed_values.join(', ')})"
+          end
         end
       end
     end

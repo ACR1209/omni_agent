@@ -86,6 +86,29 @@ RSpec.describe OmniAgent::Tool::SchemaBuilder do
 
       expect(builder.required_fields).to eq([ "users" ])
     end
+
+    it "restricts items to enum values with values:" do
+      builder = described_class.new
+
+      builder.array(:labels, values: [ :spam, :toxic ], description: "Labels that apply")
+
+      expect(builder.properties).to eq(
+        labels: {
+          type: "array",
+          description: "Labels that apply",
+          items: { type: "string", enum: [ "spam", "toxic" ] }
+        }
+      )
+    end
+
+    it "rejects empty, mixed-type or conflicting values:" do
+      builder = described_class.new
+
+      expect { builder.array(:labels, values: []) }.to raise_error(ArgumentError, /at least one value/)
+      expect { builder.array(:labels, values: [ "a", 1 ]) }.to raise_error(ArgumentError, /same type/)
+      expect { builder.array(:labels, values: [ "a" ], items_type: "string") }.to raise_error(ArgumentError, /can't be combined/)
+      expect { builder.array(:labels, values: [ "a" ]) { string :name } }.to raise_error(ArgumentError, /can't be combined/)
+    end
   end
 
   describe "#hash" do

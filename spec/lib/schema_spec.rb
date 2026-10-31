@@ -66,6 +66,15 @@ RSpec.describe OmniAgent::Schema do
       expect { typed.parse_typed(valid.merge(name: nil)) }.to raise_error(ArgumentError, /name must be of type string, got nil/)
     end
 
+    it "validates every item of an array with enum values" do
+      labeled = described_class.build { array :labels, values: %w[spam toxic] }
+
+      expect(labeled.parse_typed(labels: [ "toxic", "spam" ])).to eq(labels: [ "toxic", "spam" ])
+      expect(labeled.parse_typed(labels: [])).to eq(labels: [])
+      expect { labeled.parse_typed(labels: [ "spam", "rude" ]) }
+        .to raise_error(ArgumentError, /invalid value in labels: "rude" \(must be one of: spam, toxic\)/)
+    end
+
     it "rejects values that are not an object" do
       expect { schema.parse([ 1, 2 ]) }.to raise_error(ArgumentError, /expected an object, got Array/)
     end
@@ -75,6 +84,7 @@ RSpec.describe OmniAgent::Schema do
     it "is true when every field is required and objects are closed" do
       schema = described_class.build do
         string :name
+        array :tags, values: %w[new sale]
         array :items do
           string :sku
         end
