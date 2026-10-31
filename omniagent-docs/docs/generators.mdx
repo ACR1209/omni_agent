@@ -63,6 +63,12 @@ Generates `app/agents/invoice_ocr.rb`, a subclass of the chosen [stock agent](./
 
 * **`--from`** (required): Stock agent to build on, by its `stock_name` (see `OmniAgent::StockAgents.all`).
 * **`--fields`**: Space-separated `name:type` output fields (`string`, `integer`, `number` or `boolean`). If omitted, an `example_field` is generated. Use the full [structured output DSL](./agent/structured-output.mdx) in the generated file for enums, nested objects or optional fields.
+* **`--labels`**: Space-separated label names, for stock agents that declare labels (the [Classifier](./stock-agents/classifier.mdx)). Writes a `labels` call instead of an `output` block; add descriptions in the generated file. If omitted, a placeholder label is generated. Can't be combined with `--fields`.
+* **`--multiple`**: With `--labels`, let the agent pick several labels (`labels ..., multiple: true`).
+
+```bash
+rails generate omni_agent:stock_agent TicketTriage --from=classifier --labels billing bug feature
+```
 
 ## Eval Generator
 

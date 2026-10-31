@@ -40,11 +40,17 @@ module OmniAgent
         add_property(name, type: "boolean", description: description, required: required, validate: validate)
       end
 
-      def array(name, items_type: nil, description: nil, required: true, min_items: nil, max_items: nil, validate: nil, &block)
+      def array(name, items_type: nil, values: nil, description: nil, required: true, min_items: nil, max_items: nil, validate: nil, &block)
         property = { type: "array" }
         property[:description] = description if description
 
-        if block_given?
+        if values
+          raise ArgumentError, "array values: can't be combined with items_type: or a block" if items_type || block_given?
+          raise ArgumentError, "array values: requires at least one value" if values.empty?
+
+          normalized_values = values.map { |v| v.is_a?(Symbol) ? v.to_s : v }
+          property[:items] = { type: enum_data_type(normalized_values), enum: normalized_values }
+        elsif block_given?
           nested_builder = SchemaBuilder.new
           nested_builder.instance_eval(&block)
 

@@ -32,7 +32,10 @@ InvoiceOcr.new.run(Pathname("invoice.jpg")).structured_output
 # => { invoice_number: "A-1042", total: 120.5, paid: true }
 ```
 
-What `run` accepts depends on the stock agent; see its page (e.g. [OCR](./ocr.mdx)).
+What `run` accepts depends on the stock agent; see its page:
+
+* [Classifier](./classifier.mdx): sorts text into labels you declare with `labels`, one or several at a time.
+* [OCR](./ocr.mdx): reads photos, scans and PDFs.
 
 A subclass inherits everything from the stock agent — provider, model, `options`, tags, callbacks, tools and prompts — and can override any of it with the usual DSL (`use_model`, `options`, `output`, ...). To replace one of the stock agent's tools, define a tool with the same name under your subclass's `Tools` namespace (e.g. `InvoiceOcr::Tools::Extract`). See [Inheritance](/docs/agent/provider#inheritance) for how `use_model` interacts with an inherited provider.
 
@@ -43,7 +46,7 @@ The stock agent's prompt (shipped inside the gem) is rendered first. If your sub
 ## Listing Stock Agents
 
 ```ruby
-OmniAgent::StockAgents.all          # => [OmniAgent::StockAgents::OCR, ...]
+OmniAgent::StockAgents.all          # => [OmniAgent::StockAgents::Classifier, OmniAgent::StockAgents::OCR, ...]
 OmniAgent::StockAgents.find(:ocr)   # => OmniAgent::StockAgents::OCR
 OmniAgent::StockAgents.find(:nope)  # raises OmniAgent::UnknownStockAgentError
 ```
