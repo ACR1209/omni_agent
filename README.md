@@ -153,6 +153,23 @@ InvoiceOcr.new.run([ Pathname("page1.jpg"), Pathname("page2.jpg") ]).structured_
 
 The OCR stock agent reads images and PDFs from paths, uploaded files, ActiveStorage attachments or URLs, one at a time or several pages together.
 
+The Classifier stock agent sorts text into labels you declare; it builds the output schema and prompt from them. Pass `multiple: true` to get every label that applies:
+
+```bash
+rails generate omni_agent:stock_agent TicketTriage --from=classifier --labels billing bug feature
+```
+
+```ruby
+class TicketTriage < OmniAgent::StockAgents::Classifier
+	labels billing: "Payments, invoices, refunds",
+	       bug: "Something in the product is broken",
+	       feature: "A request for new functionality"
+end
+
+TicketTriage.new.run("I was charged twice").structured_output
+# => { label: "billing", confidence: 0.93, reason: "Mentions a duplicate charge" }
+```
+
 To add a stock agent to the gem itself, run `bin/rake "stock_agent:new[name]"` from the gem repository.
 
 ## Multi-Agent Delegation

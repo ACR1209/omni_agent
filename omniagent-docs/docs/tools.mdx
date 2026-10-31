@@ -58,6 +58,7 @@ input do
   number :confidence, min: 0.0, max: 1.0, required: false
   boolean :metric, required: false
   array :tags, items_type: "string"
+  array :days_of_week, values: %w[mon tue wed thu fri], required: false
   hash :coordinates do
     string :lat
     string :lng
@@ -72,7 +73,7 @@ Supported field types:
 * **`integer`**
 * **`number`** — floating-point values
 * **`boolean`**
-* **`array`** — pass `items_type:` for primitive items, or a block for an array of objects
+* **`array`** — pass `items_type:` for primitive items, `values:` to restrict every item to a fixed set (same rules as `enum`), or a block for an array of objects
 * **`hash`** — pass a block to declare nested properties, or omit it for a free-form object
 * **`enum`** — pass `values:` as a non-empty array of same-typed values (all strings, all integers, all floats, or all booleans). Mixed-type or empty value sets raise `ArgumentError` at schema-definition time.
 * **`polymorphic`** — see [Polymorphic References](#polymorphic-references) below.
